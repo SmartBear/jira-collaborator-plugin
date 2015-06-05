@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<atlassian-plugin key="${project.groupId}.${project.artifactId}"
+	name="${project.name}" plugins-version="2">
+	<plugin-info>
+		<description>${project.description}</description>
+		<version>${project.version}</version>
+		<vendor name="${project.organization.name}" url="${project.organization.url}" />
+		<param name="plugin-icon">images/pluginIcon.png</param>
+		<param name="plugin-logo">images/pluginLogo.png</param>
+	</plugin-info>
+	<!-- add our i18n resource -->
+	<resource type="i18n" name="i18n" location="collab-jira-integration" />
+	<!-- add our web resources -->
+	<web-resource key="collab-jira-integration-resources"
+		name="collab-jira-integration Web Resources">
+		<dependency>com.atlassian.auiplugin:ajs</dependency>
+		<resource type="download" name="collab-jira-integration.css"
+			location="/css/collab-jira-integration.css" />
+		<resource type="download" name="collab-jira-integration.js"
+			location="/js/collab-jira-integration.js" />
+		<resource type="download" name="images/" location="/images"  />
+		<resource type="download" name="admin.js" location="admin.js" />
+		<context>collab-jira-integration</context>
+	</web-resource>
+	<web-resource key="collab-jira-issue" state="enabled"
+		name="collab-jira-issue Web Resources">
+		<dependency>com.atlassian.auiplugin:ajs</dependency>
+		<resource type="download" name="issue.js" location="issue.js" />
+		<context>atl.general</context>
+	</web-resource>
+	
+	<!-- import from the product container -->
+	<component-import key="applicationProperties"
+		interface="com.atlassian.sal.api.ApplicationProperties" />
+	<component-import key="userManager"
+		interface="com.atlassian.sal.api.user.UserManager" />
+	<component-import key="loginUriProvider"
+		interface="com.atlassian.sal.api.auth.LoginUriProvider" />
+	<component-import key="renderer"
+		interface="com.atlassian.templaterenderer.TemplateRenderer" />
+	<component-import key="pluginSettingsFactory"
+		interface="com.atlassian.sal.api.pluginsettings.PluginSettingsFactory" />
+	<component-import key="transactionTemplate"
+		interface="com.atlassian.sal.api.transaction.TransactionTemplate" />
+	<servlet name="Admin Servlet" i18n-name-key="admin-servlet.name"
+		key="admin-servlet" class="com.smartbear.collaborator.admin.AdminServlet">
+		<description key="admin-servlet.description">The Admin Servlet Plugin</description>
+		<url-pattern>/collab/admin</url-pattern>
+	</servlet>
+	<rest key="collabAdmin" path="/collab" version="1.0">
+		<description>Provides REST resources for the admin UI.</description>
+	</rest>
+	<web-section name="collabAdminSection" i18n-name-key="collab-admin-section.name"
+		key="collab-admin-section" location="atl.jira.proj.config" weight="1000">
+		<description key="collab-admin-section.description">The collabAdminSection Plugin
+		</description>
+	</web-section>
+	<web-item name="collabAdminItem" i18n-name-key="collab-admin-item.name"
+		key="collab-admin-item" section="atl.jira.proj.config/collab-admin-section"
+		weight="1000">
+		<description key="collab-admin-item.description">The collabAdminItem Plugin</description>
+		<label key="collab-admin-item.label" />
+		<link linkId="collab-admin-item-link">/plugins/servlet/collab/admin?projectKey=${project.key}
+		</link>
+	</web-item>
+	<web-item name="collabIssueItem" i18n-name-key="collab-issue-item.name"
+		key="collab-issue-item" section="transitions-all" weight="1000">
+		<condition class="com.smartbear.collaborator.condition.ShowIssueCreateReviewBtn"/>
+		<description key="collab-issue-item.description">The collabIssueItem Plugin</description>
+		<label key="collab-issue-item.label" />
+		<link linkId="collab-issue-item-link"></link>
+	</web-item>
+
+	<web-panel name="reviewWebPanel" i18n-name-key="review-web-panel.name"
+		key="review-web-panel" location="atl.jira.view.issue.right.context"
+		weight="1000">
+		<label key="review-web-panel.name" />
+		<resource name="view" type="velocity" location="review.vm" />
+		<condition class="com.smartbear.collaborator.condition.ShowIssueReviewInformation"/>	
+		<context-provider class="com.smartbear.collaborator.context.ReviewInformationContext" />
+	</web-panel>
+</atlassian-plugin>

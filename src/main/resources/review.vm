@@ -1,0 +1,27 @@
+<ul class="item-details">
+	<li>
+		<dl>
+			<dt>Link:</dt>
+			<dd>
+				<span><a href="$reviewLink$reviewId" target="_blank"
+					title="Collaborator Review">$reviewLink$reviewId</a></span>
+			</dd>
+		</dl>
+
+
+		<dl>
+			<dt>Phase:</dt>
+			<dd>
+				<span>$reviewPhase</span>
+			</dd>
+		</dl>
+		
+		<dl>
+			<dt>Participants:</dt>
+			<dd>
+				<span>$reviewParticipants</span>
+			</dd>
+		</dl>
+
+	</li>
+</ul>

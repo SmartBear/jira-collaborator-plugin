@@ -1,0 +1,51 @@
+<html>
+  <head>
+    <title>$i18n.getText("title.admin")</title>
+    <meta name="decorator" content="admin">  
+    <meta name="admin.active.section" content="atl.jira.proj.config"/>
+    <meta name="admin.active.tab" content="collab-admin-item"/>
+    
+    <meta name="projectKey" content="$projectKey"/>
+	    
+    $webResourceManager.requireResource("com.smartbear.collaborator.collab-jira-integration:collab-jira-integration-resources")
+    
+  </head>
+  
+  <body>
+    <form id="admin" class="aui">
+    		<input type="hidden" id="projectKey" name="projectKey" value="$projectKey">
+     	
+     	<h2>$i18n.getText("label.admin.title.collaborator")</h2>
+     	<div class="field-group">
+    		<label for="url">$i18n.getText("label.admin.url")</label>
+   			<input type="text" id="url" name="url" class="text">
+			<br/><span>$i18n.getText("label.admin.url.hint")</span>
+   		</div>
+   		<div class="field-group">
+     		<label for="login">$i18n.getText("label.admin.login")</label>
+     		<input type="text" id="login" name="login" class="text">
+			</br><span>$i18n.getText("label.admin.login.hint")</span>
+   		</div>
+   		<div class="field-group">
+     		<label for="password">$i18n.getText("label.admin.password")</label>
+     		<input type="password" id="password" name="password" class="text">
+   		</div>
+   		
+   		<h2>$i18n.getText("label.admin.title.fisheye")</h2>
+   		<div class="field-group">
+     		<label for="login">$i18n.getText("label.admin.fisheyeLogin")</label>
+     		<input type="text" id="fisheyeLogin" name="fisheyeLogin" class="text">
+			<br/><span>$i18n.getText("label.admin.fisheyeLogin.hint")</span>
+   		</div>
+   		<div class="field-group">
+     		<label for="password">$i18n.getText("label.admin.fisheyePassword")</label>
+     		<input type="password" id="fisheyePassword" name="fisheyePassword" class="text">
+   		</div>
+   		
+   		<br/>   		
+   		<div class="field-group">
+     		<input type="submit" value="Save" class="button">
+   		</div>
+    </form>
+  </body>
+</html>

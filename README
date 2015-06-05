@@ -1,0 +1,28 @@
+SmartBear Collaborator Jira Plugin
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This plugin is designed to work with Jira 5.x.x and supports creating (or adding to) reviews from git and svn commits.
+This plugin works in conjunction with pre-installed Fisheye plugin and uses commits attached to jira issue through Fisheye plugin.
+
+This plugin is based mostly on the json api provided by Collaborator and rest api provided by Fisheye server, with third party
+libraries to create/send/receive http requests and responses.
+To interact with the Collaborator server and Fisheye server the plugin uses Jersey 1.02 and Jackson 1.9.13
+
+In the plugin module there are 2 features:
+Plugin configuration: configuration connection of each Jira Project with Collaborator server and Fisheye server
+Create/Update Review: this is an Jira issue action to create new review or update existing review with new scm commits.
+
+Setup instructions:
+The Universal Plugin Manager (UPM) makes it easy to install add-ons. With just a few clicks, you can browse the Atlassian Marketplace 
+and install add-ons in your application, all without leaving the administration interface of your Atlassian product.
+Alternatively, you can install add-ons by file upload. The file upload procedure installs an add-on as a JAR or an OBR (OSGi Bundle Repository) file. 
+The archive file should contain the plugin code and resource files. File upload enables you to install custom add-ons or any add-on not available on Atlassian Marketplace. 
+You can also use it to install add-ons for applications operating behind a firewall and disconnected from the Internet.
+
+Build instructions:
+1. Install the Atlassian SDK
+2. Go to jira project root folder and run command "atlas-package"
+https://developer.atlassian.com/docs/getting-started/set-up-the-atlassian-plugin-sdk-and-build-a-project
+
+Authors:
+    * Kotiantyn Plotnyk
