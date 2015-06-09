@@ -1,16 +1,16 @@
-SmartBear Collaborator Jira Plugin
+SmartBear Collaborator JIRA Plugin
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This plugin is designed to work with Jira 5.x.x and supports creating (or adding to) reviews from git and svn commits.
-This plugin works in conjunction with pre-installed Fisheye plugin and uses commits attached to jira issue through Fisheye plugin.
+This plugin is designed to work with JIRA 5.x.x and supports creating (or adding to) reviews from git and svn commits.
+This plugin works in conjunction with pre-installed Fisheye plugin and uses commits attached to JIRA issue through Fisheye plugin.
 
 This plugin is based mostly on the json api provided by Collaborator and rest api provided by Fisheye server, with third party
 libraries to create/send/receive http requests and responses.
 To interact with the Collaborator server and Fisheye server the plugin uses Jersey 1.02 and Jackson 1.9.13
 
 In the plugin module there are 2 features:
-Plugin configuration: configuration connection of each Jira Project with Collaborator server and Fisheye server
-Create/Update Review: this is an Jira issue action to create new review or update existing review with new scm commits.
+Plugin configuration: configuration connection of each JIRA Project with Collaborator server and Fisheye server
+Create/Update Review: this is an JIRA issue action to create new review or update existing review with new scm commits.
 
 Setup instructions:
 The Universal Plugin Manager (UPM) makes it easy to install add-ons. With just a few clicks, you can browse the Atlassian Marketplace 
@@ -21,8 +21,11 @@ You can also use it to install add-ons for applications operating behind a firew
 
 Build instructions:
 1. Install the Atlassian SDK
-2. Go to jira project root folder and run command "atlas-package"
+2. Go to JIRA project root folder and run command "atlas-package"
 https://developer.atlassian.com/docs/getting-started/set-up-the-atlassian-plugin-sdk-and-build-a-project
+
+If you need compiled Collaborator JIRA plugin, you can find it in target folder.
+
 
 Authors:
     * Kotiantyn Plotnyk
