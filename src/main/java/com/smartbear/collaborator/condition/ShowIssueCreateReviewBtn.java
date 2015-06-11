@@ -15,30 +15,18 @@
  */
 package com.smartbear.collaborator.condition;
 
+import java.util.List;
 import java.util.Map;
 
-import javax.servlet.http.Cookie;
-import javax.servlet.http.HttpServletRequest;
-
-import org.codehaus.jackson.map.ObjectMapper;
-
-import com.atlassian.jira.component.ComponentAccessor;
-import com.atlassian.jira.issue.CustomFieldManager;
 import com.atlassian.jira.issue.IssueImpl;
-import com.atlassian.jira.issue.IssueManager;
-import com.atlassian.jira.issue.MutableIssue;
-import com.atlassian.jira.issue.fields.CustomField;
 import com.atlassian.jira.plugin.webfragment.model.JiraHelper;
 import com.atlassian.plugin.PluginParseException;
 import com.atlassian.plugin.web.Condition;
+import com.atlassian.sal.api.pluginsettings.PluginSettings;
+import com.atlassian.sal.api.pluginsettings.PluginSettingsFactory;
 import com.smartbear.collaborator.issue.IssueRest;
-import com.smartbear.collaborator.json.fisheye.Detail;
-import com.smartbear.collaborator.json.fisheye.JsonDevStatus;
-import com.smartbear.collaborator.util.BeanUtil;
+import com.smartbear.collaborator.json.fisheye.Changeset;
 import com.smartbear.collaborator.util.Util;
-import com.sun.jersey.api.client.Client;
-import com.sun.jersey.api.client.ClientResponse;
-import com.sun.jersey.api.client.WebResource;
 
 /**
  * This condition is used to make decision show/hide button
@@ -50,6 +38,11 @@ import com.sun.jersey.api.client.WebResource;
  * 
  */
 public class ShowIssueCreateReviewBtn implements Condition {
+	private final PluginSettingsFactory pluginSettingsFactory;
+	
+	public ShowIssueCreateReviewBtn(PluginSettingsFactory pluginSettingsFactory) {
+		this.pluginSettingsFactory = pluginSettingsFactory;
+	}
 
 	@Override
 	public void init(Map<String, String> params) throws PluginParseException {
@@ -61,15 +54,15 @@ public class ShowIssueCreateReviewBtn implements Condition {
 	public boolean shouldDisplay(Map<String, Object> context) {
 		JiraHelper jiraHelper = (JiraHelper) context.get("helper");
 		IssueImpl issue = (IssueImpl) context.get("issue");
+		
+		// Get plugin settings by project key
+		PluginSettings pluginSettings = pluginSettingsFactory.createSettingsForKey(issue.getProjectObject().getKey());
 
 		try {
-			JsonDevStatus jsonDevStatus = IssueRest.getFisheyeDevStatus(issue.getId(), jiraHelper.getRequest());
-			if (jsonDevStatus.getErrors().isEmpty() && !jsonDevStatus.getDetail().isEmpty()) {
-				Detail detail = jsonDevStatus.getDetail().get(0);
-				if (!detail.getRepositories().isEmpty()) {
-					return true;
-				}
-			}
+			List<Changeset> changesets = IssueRest.getFisheyeChangesets(Util.getConfigModel(pluginSettings), issue.getKey(), jiraHelper.getRequest());
+			if (!changesets.isEmpty()) {
+				return true;
+			}			
 		} catch (Exception e) {
 			return false;
 		}

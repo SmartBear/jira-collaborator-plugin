@@ -24,15 +24,13 @@ import java.net.URL;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-
-import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
@@ -43,12 +41,13 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
-
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.IOUtils;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.node.ArrayNode;
+import org.codehaus.jackson.node.ObjectNode;
+import org.codehaus.jackson.node.TextNode;
 import org.ofbiz.core.entity.GenericEntityException;
-
 import com.atlassian.jira.component.ComponentAccessor;
 import com.atlassian.jira.issue.CustomFieldManager;
 import com.atlassian.jira.issue.ModifiedValue;
@@ -147,24 +146,21 @@ public class IssueRest extends BaseRest {
 			// Get commits attached to issue
 			// Example:
 			// http://nb-kpl:2990/jira/rest/dev-status/1.0/issue/detail?issueId=10100&applicationType=fecru&dataType=repository
-			JsonDevStatus jsonDevStatus = getFisheyeDevStatus(issue.getId(), request);
-
-			if (jsonDevStatus.getErrors().isEmpty() && !jsonDevStatus.getDetail().isEmpty()) {
-
-				Detail detail = jsonDevStatus.getDetail().get(0);
-
+			
+			//JsonDevStatus jsonDevStatus = getFisheyeDevStatus(issue.getId(), request);
+			
+			List<Changeset> changesetList = getFisheyeChangesets (configModel, issue.getKey(), request);
+			if (!changesetList.isEmpty()) {
 				// download raw file contents from Fisheye server and put them
 				// to zip file
-				java.io.File targetZipFile = downloadRawFilesFromFisheye(detail);
-				
+				java.io.File targetZipFile = downloadRawFilesFromFisheye(changesetList);
 				
 				//Check if collab auth ticket is valid
 			    checkCollabTicket();
-				
-
-				// upload zip file with raw files to Collaborator Server
+			    
+			    // upload zip file with raw files to Collaborator Server
 				uploadRawFilesToCollab(targetZipFile);
-
+				
 				//get review id if exist or create new one
 				String reviewId = (String) reviewIdCustomField.getValue(issue);
 				if (reviewId == null) {
@@ -173,12 +169,11 @@ public class IssueRest extends BaseRest {
 				}
 
 				//addchangelist to new/old review (depend on reviewModel)
-				addFiles(detail, reviewId, request);
+				addFiles(changesetList, reviewId, request);
 				
 				// Update already uploaded commit id list
 				issue.setCustomFieldValue(reviewUploadedCommitListCustomField, convertUploadedCommitListToString());
 				reviewUploadedCommitListCustomField.updateValue(null, issue, new ModifiedValue(null, convertUploadedCommitListToString()), changeHolder);
-
 			}
 
 		} catch (Exception e) {
@@ -269,32 +264,97 @@ public class IssueRest extends BaseRest {
 	}
 
 	/**
-	 * Gets commit information from Fisheye for current issue
+	 * Gets changeset list from Fisheye for current issue key
 	 * 
-	 * @param issueId
+	 * @param configModel
+	 * @param issueKey
 	 * @param request
 	 * @return
 	 * @throws Exception
-	 */
-	public static JsonDevStatus getFisheyeDevStatus(Long issueId, HttpServletRequest request) throws Exception {
-
+	 */	
+	public static List<Changeset> getFisheyeChangesets (ConfigModel configModel, String issueKey, HttpServletRequest request) throws Exception {
 		try {
+			List<Changeset> changesetList = new ArrayList<Changeset>();
 			Client client = Client.create();
-			WebResource service = client.resource(Util.compileDomainUrl(request) + request.getContextPath() + URI_DEV_STATUS + "issueId=" + issueId + "&applicationType=fecru&dataType=repository");
-			WebResource.Builder builder = service.getRequestBuilder();
-			for (Cookie cookie : request.getCookies()) {
-				builder = builder.cookie(new javax.ws.rs.core.Cookie(cookie.getName(), cookie.getValue()));
-			}
+			//Get available repositories from Fisheye
+			WebResource repositoriesService = client.resource(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_REPOSITORIES_API));
+			WebResource.Builder repositoriesBuilder = repositoriesService.getRequestBuilder();
+			repositoriesBuilder.header("Authorization", "Basic " + getFisheyeAuthStringEncoded(configModel));
+			repositoriesBuilder.header("Accept", "application/json");
+
+			ClientResponse repositoriesResponse = repositoriesBuilder.get(ClientResponse.class);
+			String repositoriesResponseString = repositoriesResponse.getEntity(String.class);
 			
-			ClientResponse response = builder.get(ClientResponse.class);
-			String responseString = response.getEntity(String.class);
+			//Check response status code
+			if (repositoriesResponse.getStatus() == HttpURLConnection.HTTP_ACCEPTED || repositoriesResponse.getStatus() == HttpURLConnection.HTTP_CREATED
+					|| repositoriesResponse.getStatus() == HttpURLConnection.HTTP_OK) {
+							
+				ObjectMapper mapper = new ObjectMapper();
+				ObjectNode repositoriesResponseNode = (ObjectNode) mapper.readTree(repositoriesResponseString);
+				ArrayNode repositories = (ArrayNode) repositoriesResponseNode.get("repository");
+				for (Object repositoryObj : repositories) {
+					ObjectNode repository = (ObjectNode) repositoryObj;
+					String repositoryName = repository.get("name").asText();
 
-			return new ObjectMapper().readValue(responseString, JsonDevStatus.class);
+					//Get changesets from Fisheye for current repositoryName
+					WebResource changesetService = client.resource(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_CHANGESET_API + repositoryName
+							+ "&expand=changesets,revisions&comment=" + issueKey));
+					WebResource.Builder changesetBuilder = changesetService.getRequestBuilder();
+					changesetBuilder.header("Authorization", "Basic " + getFisheyeAuthStringEncoded(configModel));
+					changesetBuilder.header("Accept", "application/json");
+					
+					ClientResponse changesetResponse = changesetBuilder.get(ClientResponse.class);
+					String changesetResponseString = changesetResponse.getEntity(String.class);
+					
+					if (changesetResponse.getStatus() == HttpURLConnection.HTTP_ACCEPTED || changesetResponse.getStatus() == HttpURLConnection.HTTP_CREATED
+							|| changesetResponse.getStatus() == HttpURLConnection.HTTP_OK) {
+						ObjectNode changesetResponseNode = (ObjectNode) mapper.readTree(changesetResponseString);
+
+						ObjectNode changesetsNode = (ObjectNode) changesetResponseNode.get("changesets");
+						ArrayNode changesetArrayNode = (ArrayNode) changesetsNode.get("changeset");
+						for (Object changesetObj : changesetArrayNode) {
+							ObjectNode changesetNode = (ObjectNode) changesetObj;
+							//Fill changeset object with data
+							Changeset changeset = new Changeset();
+							changeset.setAuthor(changesetNode.get("author").asText());
+							changeset.setCsid(changesetNode.get("csid").asText());
+							changeset.setComment(changesetNode.get("comment").asText());
+							changeset.setRepositoryName(changesetNode.get("repositoryName").asText());
+							List<File> files = new ArrayList<File>();
+							ObjectNode revisionsNode = (ObjectNode) changesetNode.get("revisions");
+							ArrayNode revisionArrayNode = (ArrayNode) revisionsNode.get("revision");
+							for (Object revisionObj : revisionArrayNode) {
+								ObjectNode revisionNode = (ObjectNode) revisionObj;
+								//Fill file object with data
+								File file = new File();
+								file.setPath(revisionNode.get("path").asText());
+								file.setRev(revisionNode.get("rev").asText());
+								file.setContentLink(revisionNode.get("contentLink").asText());
+								ArrayNode ancestorArrayNode = (ArrayNode) revisionNode.get("ancestor");
+								for (Object ancestorObj : ancestorArrayNode) {
+									TextNode ancestorNode = (TextNode) ancestorObj;
+									file.setAncestor(ancestorNode.getTextValue());
+								}
+								file.setChangeType(revisionNode.get("fileRevisionState").asText());
+								files.add(file);
+							}
+							changeset.setFiles(files);
+							changesetList.add(changeset);
+						}					
+					} else {
+						throw new Exception(changesetResponseString);
+					}			
+				}
+			} else {
+				throw new Exception(repositoriesResponseString);
+			}
+
+			return changesetList;
 		} catch (Exception e) {
-			throw new Exception("Can't get commits attached to issue from FishEye server. Check FishEye application link configuration. Check that FishEye server is running.", e);
-		}
-
+			throw new Exception("Can't get FishEye changeset information for issue " + issueKey + ". Check please FishEye url and username/password.", e);
+		}	
 	}
+	
 
 	/**
 	 * Encodes authentication string with basa64 that is used for Base
@@ -302,47 +362,69 @@ public class IssueRest extends BaseRest {
 	 * 
 	 * @return
 	 */
-	private String getAuthStringEncoded() {
+	public static String getFisheyeAuthStringEncoded(ConfigModel configModel) {
 		String authString = configModel.getFisheyeLogin() + ":" + configModel.getFisheyePassword();
 		byte[] authEncBytes = Base64.encodeBase64(authString.getBytes());
 		return new String(authEncBytes);
 	}
 
+	
 	/**
-	 * Gets repository informationfrom fish eye: type GIT/SVN, location, url etc
-	 * 
-	 * @param repositoryName
-	 * @param baseUrl
-	 *            url of Fisheye server
+	 * Gets repository map where key is repository name and value is repository object
 	 * @param request
 	 * @return
 	 * @throws Exception
 	 */
-	private RepositoryDetail getRepositoryInformation(String repositoryName, String baseUrl, HttpServletRequest request) throws Exception {
+	private Map<String, Repository> getRepositoriesMap(HttpServletRequest request) throws Exception {
 		try {
 			Client client = Client.create();
-			WebResource service = client.resource(Util.encodeURL(baseUrl + "/rest-service-fecru/admin/repositories/" + repositoryName));
+			WebResource service = client.resource(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_ADMIN_REPOSITORIES_API));
 			WebResource.Builder builder = service.getRequestBuilder();
-			builder.header("Authorization", "Basic " + getAuthStringEncoded());
+			builder.header("Authorization", "Basic " + getFisheyeAuthStringEncoded(configModel));
 
 			ClientResponse response = builder.get(ClientResponse.class);
 			String responseString = response.getEntity(String.class);
-			return mapper.readValue(responseString, RepositoryDetail.class);
+			ObjectNode responseNode = (ObjectNode) mapper.readTree(responseString);
+			ArrayNode repositoriesArrayNode = (ArrayNode) responseNode.get("values");
+			Map<String, Repository> repositoryMap = new HashMap<String, Repository>();
+			for (Object repositoryObj  : repositoriesArrayNode) {
+				ObjectNode 	repositoryNode = (ObjectNode) repositoryObj;
+				Repository repository = new Repository();
+				repository.setName(repositoryNode.get("name").asText());
+				repository.setType(repositoryNode.get("type").asText());
+				
+				ObjectNode scmNode = (ObjectNode) repositoryNode.get(repository.getType());
+				if (ScmToken.GIT.toString().equalsIgnoreCase(repository.getType())) {
+					repository.setPath(scmNode.get("location").asText());
+					repository.setScmToken(ScmToken.GIT);
+				} else if ("svn".equalsIgnoreCase(repository.getType())) {
+					repository.setScmToken(ScmToken.SUBVERSION);
+					repository.setPath(scmNode.get("url").asText());
+				} else {
+					repository.setScmToken(ScmToken.NONE);
+					repository.setPath("");
+				}
+				
+				repositoryMap.put(repositoryNode.get("name").asText(), repository);				
+			}
+			
+			return repositoryMap;
 
 		} catch (Exception e) {
-			throw new Exception("Can't get FishEye repository information for " + repositoryName + ". Check please FishEye username/password.", e);
+			throw new Exception("Can't get FishEye repositories information. Check please FishEye url and username/password.", e);
 		}
 	}
 
+	
 	/**
 	 * Downloads raw files from fisheye, calculates checksum for each file and
 	 * puts them to zip file
 	 * 
-	 * @param detail
+	 * @param changesetList 
 	 * @return
 	 * @throws Exception
 	 */
-	private java.io.File downloadRawFilesFromFisheye(Detail detail) throws Exception {
+	private java.io.File downloadRawFilesFromFisheye(List<Changeset> changesetList) throws Exception {
 		// Create temp zip file where versions will be put
 		java.io.File targetZipFile = java.io.File.createTempFile("store-", ".zip");
 		try {
@@ -362,20 +444,19 @@ public class IssueRest extends BaseRest {
 
 			// Go through repositories->commits->files to put versions in temp
 			// zip file
-			for (Repository repository : detail.getRepositories()) {
-				for (Commit commit : repository.getCommits()) {
+			for (Changeset changeset : changesetList) {
 
-					for (File file : commit.getFiles()) {
+					for (File file : changeset.getFiles()) {
 
 						// Get raw file content from fisheye server
 						// Example
 						// http://nb-kpl:8060/browse/~raw,r=HEAD/svn_test/test/log.txt
-						urlGetRawFileContent = Util.encodeURL(detail.get_instance().getBaseUrl() + "/browse/~raw,r=" + commit.getId() + "/" + repository.getName() + "/" + file.getPath());
+						urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + file.getContentLink());
 
 						client = Client.create();
 						service = client.resource(urlGetRawFileContent);
 						WebResource.Builder builder = service.getRequestBuilder();
-						builder.header("Authorization", "Basic " + getAuthStringEncoded());
+						builder.header("Authorization", "Basic " + getFisheyeAuthStringEncoded(configModel));
 						response = builder.get(ClientResponse.class);
 						fileInputStream = response.getEntity(InputStream.class);
 						fileBytes = IOUtils.toByteArray(fileInputStream);
@@ -399,10 +480,10 @@ public class IssueRest extends BaseRest {
 						// previous version
 						if (action != null && action == Action.MODIFIED) {
 
-							String r1 = Util.getQueryMap(file.getUrl()).get("r1");
-							if (!Util.isEmpty(r1)) {
 
-								urlGetRawFileContent = Util.encodeURL(detail.get_instance().getBaseUrl() + "/browse/~raw,r=" + r1 + "/" + repository.getName() + "/" + file.getPath());
+							if (!Util.isEmpty(file.getAncestor())) {
+
+								urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + "/browse/~raw,r=" + file.getAncestor() + "/" + changeset.getRepositoryName() + "/" + file.getPath());
 
 								client = Client.create();
 								service = client.resource(urlGetRawFileContent);
@@ -425,8 +506,7 @@ public class IssueRest extends BaseRest {
 
 							}
 						}
-					}
-				}
+					}				
 			}
 
 			// close ZipEntry to store the stream to the file
@@ -663,29 +743,16 @@ public class IssueRest extends BaseRest {
 
 	}
 	
-	//Converts json response to result map or throws exception if response contains errors 
-	private Map<String, Object> getResultMap(JsonCommandResult[] resultArray) throws Exception {
-		for (JsonCommandResult jsonResult : resultArray) {
-			if (!Util.isEmpty(jsonResult.getErrors())) {
-				// json errors
-				throw new Exception(parseJsonError(jsonResult.getErrors()));
-			}
-			if (!Util.isEmpty(jsonResult.getResult())) {
-				return jsonResult.getResult();
-			}
-		}
-		return Collections.emptyMap();
-	}
-
+		
 	/**
 	 * Adds changelists to new or existing review on Collaborator server
 	 * 
-	 * @param detail
+	 * @param changesetList for adding to review
 	 * @param reviewId
 	 * @param request
 	 * @throws Exception
 	 */
-	public void addFiles(Detail detail, String reviewId, HttpServletRequest request) throws Exception {
+	public void addFiles(List<Changeset> changesetList, String reviewId, HttpServletRequest request) throws Exception {
 
 		try {
 			JsonCommand authenticateCommand = new JsonCommand();
@@ -698,24 +765,23 @@ public class IssueRest extends BaseRest {
 			addFilesCommand.getArgs().put("reviewId", reviewId);
 
 			List<ChangeList> changeLists = new ArrayList<ChangeList>();
-			for (Repository repository : detail.getRepositories()) {
+				
+			Map<String, Repository> repositoryMap = getRepositoriesMap(request);
 
-				RepositoryDetail repositoryDetail = getRepositoryInformation(repository.getName(), detail.get_instance().getBaseUrl(), request);
+				for (Changeset changeset : changesetList) {
 
-				for (Commit commit : repository.getCommits()) {
-
-					if (uploadedCommitList.contains(commit.getId())) {
+					if (uploadedCommitList.contains(changeset.getCsid())) {
 						continue;
 					}
 
 					List<Version> versions = new ArrayList<Version>();
 					ChangeList changeList = new ChangeList();
-					for (File file : commit.getFiles()) {
+					for (File file : changeset.getFiles()) {
 						Version version = new Version();
 						version.setScmPath(file.getPath());
 						version.setMd5(file.getMd5());
 
-						version.setScmVersionName(commit.getId());
+						version.setScmVersionName(changeset.getCsid());
 						Action action = Util.getVersionAction(file.getChangeType());
 						version.setAction(action);
 						version.setSource(FileSource.CHECKEDIN);
@@ -725,7 +791,7 @@ public class IssueRest extends BaseRest {
 						if (action != null && action == Action.MODIFIED) {
 							BaseVersion baseVersion = new BaseVersion();
 							baseVersion.setScmPath(file.getPath());
-							baseVersion.setScmVersionName(Util.getQueryMap(file.getUrl()).get("r1"));
+							baseVersion.setScmVersionName(file.getAncestor());
 							baseVersion.setMd5(file.getPreviousMd5());
 							baseVersion.setSource(FileSource.CHECKEDIN);
 							baseVersion.setAction(Action.MODIFIED);
@@ -734,29 +800,18 @@ public class IssueRest extends BaseRest {
 
 						versions.add(version);
 					}
-
-					String scmUrl = null;
-					ScmToken scmToken = ScmToken.NONE;
-					if (ScmToken.GIT.toString().equalsIgnoreCase(repositoryDetail.getType())) {
-						scmUrl = repositoryDetail.getGit().getLocation();
-						scmToken = ScmToken.GIT;
-					}
-
-					if ("svn".equalsIgnoreCase(repositoryDetail.getType())) {
-						scmUrl = repositoryDetail.getSvn().getUrl();
-						scmToken = ScmToken.SUBVERSION;
-					}
-					changeList.setScmConnectionParameters(new String[] { scmUrl });
-					changeList.setScmToken(scmToken);
-
-					changeList.setCommitInfo(new CommitInfo(commit.getAuthor().getName(), commit.getMessage(), commit.getAuthorTimestamp()));
+			
+					Repository repository = repositoryMap.get(changeset.getRepositoryName());
+					changeList.setScmConnectionParameters(new String[] { repository.getPath() });				
+					changeList.setScmToken(repository.getScmToken());
+					changeList.setCommitInfo(new CommitInfo(changeset.getAuthor(), changeset.getComment(), changeset.getDate()));
 
 					Version[] versionsArray = new Version[0];
 					changeList.setVersions(versions.toArray(versionsArray));
 					changeLists.add(changeList);
-					uploadedCommitList.add(commit.getId());
+					uploadedCommitList.add(changeset.getCsid());
 				}
-			}
+			
 
 			addFilesCommand.getArgs().put("changelists", changeLists);
 
@@ -772,15 +827,6 @@ public class IssueRest extends BaseRest {
 		} catch (Exception e) {
 			throw new Exception("Can't addchangelists to Collaborator Server.\n " + e.getMessage());
 		}
-	}
-
-	private String parseJsonError(List<JsonError> jsonErrors) {
-		StringBuilder builder = new StringBuilder();
-		for (JsonError jsonError : jsonErrors) {
-			builder.append(jsonError.getMessage());
-			builder.append("\n");
-		}
-		return builder.toString();
 	}
 
 	private String calculateMd5(byte[] fileBytes) throws Exception {

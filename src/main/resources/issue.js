@@ -22,7 +22,8 @@ AJS.toInit(function() {
 	      url: baseUrl + "/rest/collab/1.0/issue?issueKey=" + issueKey,
 	      type: "GET",
 	      dataType: "json",  
-	      success: function(restResponse) {	    	 
+	      success: function(restResponse) {	 
+	    	  AJS.$("#collab-issue-item-link-disable").attr("id", "collab-issue-item-link");
 	    	  if (restResponse.statusCode == 1) {	    		  	    		  
 	    		  JIRA.Messages.showSuccessMsg(restResponse.message);
 	    		  location.reload();
@@ -34,8 +35,8 @@ AJS.toInit(function() {
 	  }  
 	  
 	  AJS.$("#collab-issue-item-link").click(function(e) {
-		  
 	    e.preventDefault();
+	    AJS.$(this).attr("id", "collab-issue-item-link-disable");
 	    createUpdateReview();
 	  });
 	  

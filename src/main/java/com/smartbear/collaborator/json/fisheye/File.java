@@ -25,6 +25,9 @@ public class File {
 	private Integer linesRemoved;
 	private String md5;
 	private String previousMd5;
+	private String rev;
+	private String ancestor;
+	private String contentLink;
 
 	public String getPath() {
 		return path;
@@ -82,9 +85,31 @@ public class File {
 	public void setPreviousMd5(String previousMd5) {
 		this.previousMd5 = previousMd5;
 	}
-	
-	
-	
-	
 
+	public String getRev() {
+		return rev;
+	}
+
+	public void setRev(String rev) {
+		this.rev = rev;
+	}
+
+	public String getAncestor() {
+		return ancestor;
+	}
+
+	public void setAncestor(String ancestor) {
+		this.ancestor = ancestor;
+	}
+
+	public String getContentLink() {
+		return contentLink;
+	}
+
+	public void setContentLink(String contentLink) {
+		this.contentLink = contentLink;
+	}
+	
+	
+	
 }

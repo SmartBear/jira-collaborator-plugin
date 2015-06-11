@@ -42,8 +42,9 @@ public class ConfigModel {
 	
 	@XmlElement
 	private String fisheyePassword;
-
-
+	
+	@XmlElement
+	private String fisheyeUrl;
 	
 	public String getUrl() {
 		return url;
@@ -100,7 +101,13 @@ public class ConfigModel {
 	public void setFisheyePassword(String fisheyePassword) {
 		this.fisheyePassword = fisheyePassword;
 	}
-	
-	
+
+	public String getFisheyeUrl() {
+		return fisheyeUrl;
+	}
+
+	public void setFisheyeUrl(String fisheyeUrl) {
+		this.fisheyeUrl = fisheyeUrl;
+	}
 		
 }

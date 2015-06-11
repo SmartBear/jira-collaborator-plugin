@@ -1,0 +1,7 @@
+# NOTE:  Checking in a file then ignoring it can lead to unexpected behavior.
+# When editing this file, make sure you haven't ignored a checked-in file with 
+# this command: 
+# git ls-files -i --exclude-standard 
+# (it should return nothing) 
+
+target/

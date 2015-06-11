@@ -20,7 +20,7 @@
       <attribute value="jar:file:/C:/Users/kpl/.m2/repository/javax/ws/rs/jsr311-api/1.1.1/jsr311-api-1.1.1-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+  <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
   <classpathentry kind="var" path="M2_REPO/com/atlassian/jira/jira-api/6.3.15/jira-api-6.3.15.jar"/>
   <classpathentry kind="var" path="M2_REPO/com/atlassian/annotations/atlassian-annotations/0.14/atlassian-annotations-0.14.jar" sourcepath="M2_REPO/com/atlassian/annotations/atlassian-annotations/0.14/atlassian-annotations-0.14-sources.jar">
     <attributes>

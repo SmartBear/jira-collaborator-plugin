@@ -30,8 +30,16 @@
      		<label for="password">$i18n.getText("label.admin.password")</label>
      		<input type="password" id="password" name="password" class="text">
    		</div>
+		<div class="field-group">
+     		<button id="testCollabConnection" class="button" >$i18n.getText("label.admin.collabtest")</button>
+   		</div>
    		
    		<h2>$i18n.getText("label.admin.title.fisheye")</h2>
+		<div class="field-group">
+    		<label for="fisheyeUrl">$i18n.getText("label.admin.fisheyeurl")</label>
+   			<input type="text" id="fisheyeUrl" name="fisheyeUrl" class="text">
+			<br/><span>$i18n.getText("label.admin.fisheyeurl.hint")</span>
+   		</div>
    		<div class="field-group">
      		<label for="login">$i18n.getText("label.admin.fisheyeLogin")</label>
      		<input type="text" id="fisheyeLogin" name="fisheyeLogin" class="text">
@@ -40,6 +48,9 @@
    		<div class="field-group">
      		<label for="password">$i18n.getText("label.admin.fisheyePassword")</label>
      		<input type="password" id="fisheyePassword" name="fisheyePassword" class="text">
+   		</div>
+		<div class="field-group">
+     		<button id="testFisheyeConnection" class="button" >$i18n.getText("label.admin.fisheyetest")</button>
    		</div>
    		
    		<br/>   		

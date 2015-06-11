@@ -15,9 +15,16 @@
  */
 package com.smartbear.collaborator.admin;
 
+import static com.smartbear.collaborator.util.Constants.COLLAB_COMMAND_LOGINTICKET;
+import static com.smartbear.collaborator.util.Constants.FISHEYE_ADMIN_REPOSITORIES_API;
+import static com.smartbear.collaborator.util.Constants.URI_COLAB_JSON;
+
 import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URLDecoder;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
@@ -32,6 +39,9 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.node.ArrayNode;
+import org.codehaus.jackson.node.ObjectNode;
 
 import com.atlassian.sal.api.pluginsettings.PluginSettings;
 import com.atlassian.sal.api.pluginsettings.PluginSettingsFactory;
@@ -39,8 +49,16 @@ import com.atlassian.sal.api.transaction.TransactionCallback;
 import com.atlassian.sal.api.transaction.TransactionTemplate;
 import com.atlassian.sal.api.user.UserManager;
 import com.smartbear.collaborator.BaseRest;
+import com.smartbear.collaborator.issue.IssueRest;
 import com.smartbear.collaborator.json.RestResponse;
+import com.smartbear.collaborator.json.collab.JsonCommand;
+import com.smartbear.collaborator.json.collab.JsonCommandResult;
+import com.smartbear.collaborator.json.collab.ScmToken;
+import com.smartbear.collaborator.json.fisheye.Repository;
 import com.smartbear.collaborator.util.Util;
+import com.sun.jersey.api.client.Client;
+import com.sun.jersey.api.client.ClientResponse;
+import com.sun.jersey.api.client.WebResource;
 
 /**
  * This class is used for rest get/put requests from jira project configuration
@@ -58,6 +76,7 @@ public class ConfigRest extends BaseRest {
 
 	/**
 	 * Used to save plugin configuration for certain project
+	 * 
 	 * @param configModel
 	 * @param request
 	 * @return
@@ -77,23 +96,7 @@ public class ConfigRest extends BaseRest {
 		transactionTemplate.execute(new TransactionCallback() {
 			public Object doInTransaction() {
 				PluginSettings pluginSettings = pluginSettingsFactory.createSettingsForKey(projectKey);
-				try {
-
-					pluginSettings.put(ConfigModel.class.getName() + ".url", Util.compileDomainUrl(URLDecoder.decode(configModel.getUrl(), "UTF-8")));
-					pluginSettings.put(ConfigModel.class.getName() + ".login", URLDecoder.decode(configModel.getLogin(), "UTF-8"));
-					pluginSettings.put(ConfigModel.class.getName() + ".password", URLDecoder.decode(configModel.getPassword(), "UTF-8"));
-
-					pluginSettings.put(ConfigModel.class.getName() + ".fisheyeLogin", URLDecoder.decode(configModel.getFisheyeLogin(), "UTF-8"));
-					pluginSettings.put(ConfigModel.class.getName() + ".fisheyePassword", URLDecoder.decode(configModel.getFisheyePassword(), "UTF-8"));
-
-				} catch (UnsupportedEncodingException e) {
-					restResponse.setStatusCode(RestResponse.STATUS_ERROR);
-					restResponse.setMessage("Encoding exception has occured");					
-					restResponse.setDescription(ExceptionUtils.getStackTrace(e));
-				} catch (MalformedURLException e) {
-					restResponse.setStatusCode(RestResponse.STATUS_ERROR);
-					restResponse.setMessage("Collaborator URL has wrong format. Example: http(s)://host(:port)");
-				}
+				savePluginSettings(pluginSettings, configModel, restResponse);			
 				return null;
 			}
 		});
@@ -108,6 +111,7 @@ public class ConfigRest extends BaseRest {
 
 	/**
 	 * Used to get plugin configuration for certain project
+	 * 
 	 * @param projectKey
 	 * @param request
 	 * @return
@@ -124,18 +128,143 @@ public class ConfigRest extends BaseRest {
 		return Response.ok(transactionTemplate.execute(new TransactionCallback() {
 			public Object doInTransaction() {
 				PluginSettings settings = pluginSettingsFactory.createSettingsForKey(projectKey);
-				ConfigModel configModel = new ConfigModel();
-
-				configModel.setUrl(Util.getRestString((String) settings.get(ConfigModel.class.getName() + ".url")));
-				configModel.setLogin(Util.getRestString((String) settings.get(ConfigModel.class.getName() + ".login")));
-				configModel.setPassword(Util.getRestString((String) settings.get(ConfigModel.class.getName() + ".password")));
-
-				configModel.setFisheyeLogin(Util.getRestString((String) settings.get(ConfigModel.class.getName() + ".fisheyeLogin")));
-				configModel.setFisheyePassword(Util.getRestString((String) settings.get(ConfigModel.class.getName() + ".fisheyePassword")));
-
-				return configModel;
+				return Util.getConfigModel(settings);
 			}
 		})).build();
+	}
+	
+	/**
+	 * Used to check collab connection with username/password
+	 * 
+	 * @param projectKey
+	 * @param request
+	 * @return
+	 */
+	@PUT
+	@Produces(MediaType.APPLICATION_JSON)
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Path("checkCollabConnection")
+	public Response checkCollabConnection(final ConfigModel configModel, @Context HttpServletRequest request) {
+		String username = userManager.getRemoteUsername(request);
+		if (username == null || !userManager.isSystemAdmin(username)) {
+			return Response.status(Status.UNAUTHORIZED).build();
+		}
+
+		return Response.ok(transactionTemplate.execute(new TransactionCallback() {
+			public Object doInTransaction() {
+				final RestResponse restResponse = new RestResponse();
+				PluginSettings settings = pluginSettingsFactory.createSettingsForKey(configModel.getProjectKey());
+				savePluginSettings(settings, configModel, restResponse);		
+				String errors = testCollabConnection(Util.getConfigModel(settings));
+				if (errors == null) {
+					restResponse.setMessage("Connection to Collaborator server is successful!");
+					restResponse.setStatusCode(RestResponse.STATUS_SUCCESS);
+				} else {
+					restResponse.setMessage("Connection to Collaborator server was failed");
+					restResponse.setDescription(errors);
+					restResponse.setStatusCode(RestResponse.STATUS_ERROR);
+				}
+				return restResponse;
+			}
+		})).build();
+	}
+	
+	@PUT
+	@Produces(MediaType.APPLICATION_JSON)
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Path("checkFisheyeConnection")
+	public Response checkFisheyeConnection(final ConfigModel configModel, @Context HttpServletRequest request) {
+		String username = userManager.getRemoteUsername(request);
+		if (username == null || !userManager.isSystemAdmin(username)) {
+			return Response.status(Status.UNAUTHORIZED).build();
+		}
+
+		return Response.ok(transactionTemplate.execute(new TransactionCallback() {
+			public Object doInTransaction() {
+				final RestResponse restResponse = new RestResponse();
+				PluginSettings settings = pluginSettingsFactory.createSettingsForKey(configModel.getProjectKey());
+				savePluginSettings(settings, configModel, restResponse);		
+				String errors = testFisheyeConnection(Util.getConfigModel(settings));
+				if (errors == null) {
+					restResponse.setMessage("Connection to Fisheye server is successful!");
+					restResponse.setStatusCode(RestResponse.STATUS_SUCCESS);
+				} else {
+					restResponse.setMessage("Connection to Fisheye server was failed");
+					restResponse.setDescription(errors);
+					restResponse.setStatusCode(RestResponse.STATUS_ERROR);
+				}
+				return restResponse;
+			}
+		})).build();
+	}
+
+	private String testCollabConnection(ConfigModel configModel) {
+		try {
+			JsonCommand jsonCommand = new JsonCommand();
+			jsonCommand.setCommand(COLLAB_COMMAND_LOGINTICKET);
+			jsonCommand.getArgs().put("login", configModel.getLogin());
+			jsonCommand.getArgs().put("password", configModel.getPassword());
+
+			Client client = Client.create();
+			ObjectMapper mapper = new ObjectMapper();
+			WebResource service = client.resource(configModel.getUrl() + URI_COLAB_JSON);
+			String jsonRequestString = mapper.writeValueAsString(new JsonCommand[] { jsonCommand });
+			ClientResponse response = service.type("application/json").post(ClientResponse.class, jsonRequestString);
+			String responseString = response.getEntity(String.class);
+			getResultMap(mapper.readValue(responseString, JsonCommandResult[].class));
+			return null;
+		} catch (Exception e) {
+			return e.getMessage();
+		}
+	}
+	
+	private String testFisheyeConnection(ConfigModel configModel) {
+		try {
+			Client client = Client.create();
+			WebResource service = client.resource(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_ADMIN_REPOSITORIES_API));
+			WebResource.Builder builder = service.getRequestBuilder();
+			builder.header("Authorization", "Basic " + IssueRest.getFisheyeAuthStringEncoded(configModel));
+
+			ClientResponse response = builder.get(ClientResponse.class);
+			
+			String responseString = response.getEntity(String.class);
+			if (response.getResponseStatus() != Response.Status.OK) {
+				return responseString;
+			}
+		} catch (Exception e) {
+			return e.toString();
+		} 
+			
+		return null;
+	}
+	
+	private void savePluginSettings(PluginSettings pluginSettings, ConfigModel configModel, RestResponse restResponse) {
+		try {
+
+			try {
+				pluginSettings.put(ConfigModel.class.getName() + ".url", Util.compileDomainUrl(URLDecoder.decode(configModel.getUrl(), "UTF-8")));
+				pluginSettings.put(ConfigModel.class.getName() + ".login", URLDecoder.decode(configModel.getLogin(), "UTF-8"));
+				pluginSettings.put(ConfigModel.class.getName() + ".password", URLDecoder.decode(configModel.getPassword(), "UTF-8"));
+			} catch (MalformedURLException e) {
+				restResponse.setStatusCode(RestResponse.STATUS_ERROR);
+				restResponse.setMessage("Collaborator URL has wrong format. Example: http(s)://host(:port)");
+			}
+
+			pluginSettings.put(ConfigModel.class.getName() + ".fisheyeLogin", URLDecoder.decode(configModel.getFisheyeLogin(), "UTF-8"));
+			pluginSettings.put(ConfigModel.class.getName() + ".fisheyePassword", URLDecoder.decode(configModel.getFisheyePassword(), "UTF-8"));
+
+			try {
+				pluginSettings.put(ConfigModel.class.getName() + ".fisheyeUrl", Util.compileDomainUrl(URLDecoder.decode(configModel.getFisheyeUrl(), "UTF-8")));
+			} catch (MalformedURLException e) {
+				restResponse.setStatusCode(RestResponse.STATUS_ERROR);
+				restResponse.setMessage("Fisheye URL has wrong format. Example: http(s)://host(:port)");
+			}
+
+		} catch (UnsupportedEncodingException e) {
+			restResponse.setStatusCode(RestResponse.STATUS_ERROR);
+			restResponse.setMessage("Encoding exception has occured");
+			restResponse.setDescription(ExceptionUtils.getStackTrace(e));
+		}
 	}
 
 }

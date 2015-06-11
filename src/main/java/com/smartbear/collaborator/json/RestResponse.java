@@ -46,6 +46,13 @@ public class RestResponse {
 		this.statusCode = statusCode;
 		this.message = message;
 	}
+	
+	public RestResponse(int statusCode, String message, String description) {
+		super();
+		this.statusCode = statusCode;
+		this.message = message;
+		this.description = description;
+	}
 
 	public int getStatusCode() {
 		return statusCode;

@@ -62,14 +62,17 @@
 		<description key="collab-admin-item.description">The collabAdminItem Plugin</description>
 		<label key="collab-admin-item.label" />
 		<link linkId="collab-admin-item-link">/plugins/servlet/collab/admin?projectKey=${project.key}
-		</link>
+		</link>	
 	</web-item>
 	<web-item name="collabIssueItem" i18n-name-key="collab-issue-item.name"
 		key="collab-issue-item" section="transitions-all" weight="1000">
 		<condition class="com.smartbear.collaborator.condition.ShowIssueCreateReviewBtn"/>
 		<description key="collab-issue-item.description">The collabIssueItem Plugin</description>
+		<icon height="16" width="16">
+    	<link>/images/pluginIcon.png</link>
+		</icon>
 		<label key="collab-issue-item.label" />
-		<link linkId="collab-issue-item-link"></link>
+		<link linkId="collab-issue-item-link"></link>		
 	</web-item>
 
 	<web-panel name="reviewWebPanel" i18n-name-key="review-web-panel.name"

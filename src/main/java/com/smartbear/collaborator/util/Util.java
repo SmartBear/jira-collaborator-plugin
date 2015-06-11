@@ -37,12 +37,25 @@ public class Util {
 	public static ConfigModel getConfigModel(PluginSettings settings) {
 
 		ConfigModel configModel = new ConfigModel();
-		configModel.setUrl((String) settings.get(ConfigModel.class.getName() + ".url"));
+		
+		try {
+			configModel.setUrl(compileDomainUrl((String) settings.get(ConfigModel.class.getName() + ".url")));
+		} catch (MalformedURLException e) {
+			e.printStackTrace();
+		}
+		
 		configModel.setLogin((String) settings.get(ConfigModel.class.getName() + ".login"));
 		configModel.setPassword((String) settings.get(ConfigModel.class.getName() + ".password"));
 		configModel.setFisheyeLogin((String) settings.get(ConfigModel.class.getName() + ".fisheyeLogin"));
 		configModel.setFisheyePassword((String) settings.get(ConfigModel.class.getName() + ".fisheyePassword"));		
 		configModel.setAuthTicket((String) settings.get(ConfigModel.class.getName() + ".authTicket"));
+		
+		try {
+			configModel.setFisheyeUrl(compileDomainUrl((String) settings.get(ConfigModel.class.getName() + ".fisheyeUrl")));
+		} catch (MalformedURLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 
 		return configModel;
 
@@ -103,7 +116,7 @@ public class Util {
 
 	public static Action getVersionAction(String changeType) {
 
-		if ("MODIFIED".equals(changeType)) {
+		if ("CHANGED".equals(changeType)) {
 			return Action.MODIFIED;
 		}
 
@@ -111,7 +124,7 @@ public class Util {
 			return Action.ADDED;
 		}
 
-		if ("DELETED".equals(changeType)) {
+		if ("REMOVED".equals(changeType)) {
 			return Action.DELETED;
 		}
 
