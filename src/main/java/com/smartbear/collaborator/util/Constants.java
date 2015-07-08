@@ -37,6 +37,7 @@ public interface Constants {
 	public static final String COLLAB_COMMAND_CHECKLOGGEDIN = "Examples.checkLoggedIn";
 	public static final String COLLAB_COMMAND_LOGINTICKET = "SessionService.getLoginTicket";
 	public static final String COLLAB_COMMAND_AUTHENTICATE = "SessionService.authenticate";
+	public static final String COLLAB_COMMAND_ASSIGNMENT = "ReviewService.updateAssignments";
 	public static final String COLLAB_COMMAND_ADDFILES = "ReviewService.addFiles";
 	public static final String COLLAB_COMMAND_GETCOLLABUSERNAME = "UserService.findUserByRemoteServiceAndRemoteUser";
 

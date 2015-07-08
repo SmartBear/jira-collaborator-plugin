@@ -164,8 +164,9 @@ public class IssueRest extends BaseRest {
 				//get review id if exist or create new one
 				String reviewId = (String) reviewIdCustomField.getValue(issue);
 				if (reviewId == null) {
-					String collabUsername = getCollabUsername(username);
-					reviewId = createReview(collabUsername);
+					CollabUserInfo collabUserInfo = getCollabUserInfo(username);
+					reviewId = createReview(collabUserInfo);
+					addAuthorToReview(reviewId, collabUserInfo) ;
 				}
 
 				//addchangelist to new/old review (depend on reviewModel)
@@ -504,6 +505,8 @@ public class IssueRest extends BaseRest {
 									zipEntryNames.add(file.getPreviousMd5());
 								}
 
+							} else {
+								throw new Exception("Please, try to \"Create/Update Review\" a little bit later. FishEye server hasn't been refreshed commit info yet.");
 							}
 						}
 					}				
@@ -644,11 +647,11 @@ public class IssueRest extends BaseRest {
 	}
 	
 	/**
-	 * Gets Collaborator username by current logged in username
+	 * Gets Collaborator user info by current logged in username
 	 * @return
 	 * @throws Exception
 	 */
-	public String getCollabUsername(String currentUsername) throws Exception {
+	public CollabUserInfo getCollabUserInfo(String currentUsername) throws Exception {
 		String collabUsername = null;
 		try {
 			JsonCommand authenticateCommand = new JsonCommand();
@@ -662,7 +665,6 @@ public class IssueRest extends BaseRest {
 			getCollabUsernameCommand.getArgs().put("remoteSystemToken", "JIRA");
 			
 			String jsonRequestString = mapper.writeValueAsString(new JsonCommand[] { authenticateCommand, getCollabUsernameCommand });
-
 			Client client = Client.create();
 			WebResource service = client.resource(configModel.getUrl() + URI_COLAB_JSON);
 			ClientResponse response = service.type("application/json").post(ClientResponse.class, jsonRequestString);
@@ -670,14 +672,15 @@ public class IssueRest extends BaseRest {
 
 			Map<String, Object> resultMap = getResultMap(mapper.readValue(responseString, JsonCommandResult[].class));
 			if (!resultMap.isEmpty()) {
-				Map<String, Object> remoteMapUserInfo = (Map<String, Object>) resultMap.get("remoteMapUserInfo");
+				Map<Integer, Object> remoteMapUserInfo = (Map<Integer, Object>) resultMap.get("remoteMapUserInfo");
 								
-				for (Map.Entry<String, Object> entry : remoteMapUserInfo.entrySet()) {
-					collabUsername = (String) ((Map) entry.getValue()).get("login");
+				for (Map.Entry<Integer, Object> entry : remoteMapUserInfo.entrySet()) {
+					return mapper.convertValue(entry.getValue(), CollabUserInfo.class);
+	
 				}
 			}
 
-			return collabUsername;
+			return null;
 
 		} catch (Exception e) {
 			throw new Exception("Can't get Collab username.\n " + e.getMessage());
@@ -692,7 +695,7 @@ public class IssueRest extends BaseRest {
 	 * @return
 	 * @throws Exception
 	 */
-	public String createReview(String collabUsername) throws Exception {
+	public String createReview(CollabUserInfo collabUserInfo) throws Exception {
 
 		try {
 			JsonCommand authenticateCommand = new JsonCommand();
@@ -702,7 +705,9 @@ public class IssueRest extends BaseRest {
 
 			JsonCommand createReviewCommand = new JsonCommand();
 			createReviewCommand.setCommand(COLLAB_COMMAND_CREATEREVIEW);
-			createReviewCommand.getArgs().put("creator", collabUsername != null ? collabUsername : configModel.getLogin());
+			//If Collaborator user exists for current jira username then set it as creator, 
+			//else set creator as collaborator admin from jira collab plugin
+			createReviewCommand.getArgs().put("creator", collabUserInfo != null ? collabUserInfo.getLogin() : configModel.getLogin());
 			createReviewCommand.getArgs().put("title", issue.getSummary() != null ? issue.getSummary() : "");
 			createReviewCommand.getArgs().put("customFields",
 					new com.smartbear.collaborator.json.collab.CustomField[] { 
@@ -739,6 +744,52 @@ public class IssueRest extends BaseRest {
 
 		} catch (Exception e) {
 			throw new Exception("Can't create new review on Collaborator Server.\n " + e.getMessage());
+		}
+
+	}
+	
+	/**
+	 * Adds current jira user as author to review participants in case there is
+	 * collaborator user mapped with current jira user
+	 * 
+	 * @param issue
+	 * @return
+	 * @throws Exception
+	 */
+	public void addAuthorToReview(String reviewId, CollabUserInfo collabUserInfo) throws Exception {
+		if (collabUserInfo == null || Util.isEmpty(reviewId)) {
+			return;
+		}
+
+		try {
+			JsonCommand authenticateCommand = new JsonCommand();
+			authenticateCommand.setCommand(COLLAB_COMMAND_AUTHENTICATE);
+			authenticateCommand.getArgs().put("login", configModel.getLogin());
+			authenticateCommand.getArgs().put("ticket", configModel.getAuthTicket());
+
+			JsonCommand addAuthorToReviewCommand = new JsonCommand();
+			addAuthorToReviewCommand.setCommand(COLLAB_COMMAND_ASSIGNMENT);
+			
+			addAuthorToReviewCommand.getArgs().put("reviewId", reviewId);
+			
+			
+			addAuthorToReviewCommand.getArgs().put("assignments",
+					new com.smartbear.collaborator.json.collab.Assignment[] { 
+					new com.smartbear.collaborator.json.collab.Assignment(collabUserInfo.getLogin(), "AUTHOR", null)});
+		
+			String jsonRequestString = mapper.writeValueAsString(new JsonCommand[] { authenticateCommand, addAuthorToReviewCommand });
+
+			Client client = Client.create();
+			WebResource service = client.resource(configModel.getUrl() + URI_COLAB_JSON);
+			ClientResponse response = service.type("application/json").post(ClientResponse.class, jsonRequestString);
+			String responseString = response.getEntity(String.class);
+			getResultMap(mapper.readValue(responseString, JsonCommandResult[].class));
+			
+			issue.setCustomFieldValue(reviewParticipantsCustomField, collabUserInfo.getFullName());
+			reviewParticipantsCustomField.updateValue(null, issue, new ModifiedValue(null, collabUserInfo.getFullName()), changeHolder);
+
+		} catch (Exception e) {
+			throw new Exception("Can't add author " + collabUserInfo.getFullName() + " to review #" +reviewId + " on Collaborator Server.\n " + e.getMessage());
 		}
 
 	}
