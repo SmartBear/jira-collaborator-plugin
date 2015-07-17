@@ -832,7 +832,7 @@ public class IssueRest extends BaseRest {
 						version.setScmPath(file.getPath());
 						version.setMd5(file.getMd5());
 
-						version.setScmVersionName(changeset.getCsid());
+						version.setScmVersionName(file.getRev());
 						Action action = Util.getVersionAction(file.getChangeType());
 						version.setAction(action);
 						version.setSource(FileSource.CHECKEDIN);
@@ -855,7 +855,8 @@ public class IssueRest extends BaseRest {
 					Repository repository = repositoryMap.get(changeset.getRepositoryName());
 					changeList.setScmConnectionParameters(new String[] { repository.getPath() });				
 					changeList.setScmToken(repository.getScmToken());
-					changeList.setCommitInfo(new CommitInfo(changeset.getAuthor(), changeset.getComment(), changeset.getDate()));
+					changeList.setCommitInfo(new CommitInfo(changeset.getCsid(), changeset.getAuthor(), changeset.getComment(), changeset.getDate()));
+					
 
 					Version[] versionsArray = new Version[0];
 					changeList.setVersions(versions.toArray(versionsArray));

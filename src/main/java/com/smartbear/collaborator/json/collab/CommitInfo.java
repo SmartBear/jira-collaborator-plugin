@@ -28,10 +28,11 @@ public class CommitInfo {
 	
 	
 
-	public CommitInfo(String author, String comment, Date date) {
+	public CommitInfo(String scmId, String author, String comment, Date date) {
 		this.author = author;
 		this.comment = comment;
 		this.date = date;
+		this.scmId = scmId;
 	}
 
 	public String getScmId() {
