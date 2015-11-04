@@ -19,7 +19,7 @@ AJS.toInit(function() {
 	  var secureWarning = "Be careful. You are using not seccure protocol for transferring secure data!";
 	  	  
 	  function checkSecureProtocol() {
-		  if (baseUrl.startsWith("https://") === false) {
+		  if (baseUrl.indexOf("https://") >= 0) {
 	    	  alert(secureWarning);
 	      }  
 	  }
@@ -42,12 +42,12 @@ AJS.toInit(function() {
 	      type: "GET",
 	      
 	      success: function(config) {
-	        AJS.$("#url").attr("value", decodeURIComponent(config.url));
-	        AJS.$("#login").attr("value", decodeURIComponent(config.login));
-	        AJS.$("#password").attr("value", decodeURIComponent(config.password));
-	        AJS.$("#fisheyeUrl").attr("value", decodeURIComponent(config.fisheyeUrl));
-	        AJS.$("#fisheyeLogin").attr("value", decodeURIComponent(config.fisheyeLogin));
-	        AJS.$("#fisheyePassword").attr("value", decodeURIComponent(config.fisheyePassword));
+			AJS.$("#url").attr("value", config.url === undefined ? '' : decodeURIComponent(config.url) );
+	        AJS.$("#login").attr("value", config.login === undefined ? '' : decodeURIComponent(config.login) );
+	        AJS.$("#password").attr("value", config.password === undefined ? '' : decodeURIComponent(config.password));
+	        AJS.$("#fisheyeUrl").attr("value", config.fisheyeUrl === undefined ? '' : decodeURIComponent(config.fisheyeUrl));
+	        AJS.$("#fisheyeLogin").attr("value", config.fisheyeLogin === undefined ? '' : decodeURIComponent(config.fisheyeLogin));
+	        AJS.$("#fisheyePassword").attr("value", config.fisheyePassword === undefined ? '' : decodeURIComponent(config.fisheyePassword));
 	      }
 	    });
 	    checkSecureProtocol();
