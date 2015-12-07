@@ -24,22 +24,16 @@ import com.atlassian.jira.issue.IssueImpl;
 import com.atlassian.jira.issue.fields.CustomField;
 import com.atlassian.jira.plugin.webfragment.contextproviders.AbstractJiraContextProvider;
 import com.atlassian.jira.plugin.webfragment.model.JiraHelper;
-import com.atlassian.plugin.PluginParseException;
 
 import static com.smartbear.collaborator.util.Constants.*;
 
 /**
- * Context with parametes tha is used for web panel "Review Information"
+ * Context with parameters that is used for web panel "Review Information"
  * 
  * @author kpl
  * 
  */
 public class ReviewInformationContext extends AbstractJiraContextProvider {
-
-	@Override
-	public void init(Map params) throws PluginParseException {
-
-	}
 
 	@Override
 	public Map getContextMap(User arg0, JiraHelper arg1) {
@@ -48,7 +42,21 @@ public class ReviewInformationContext extends AbstractJiraContextProvider {
 
 		CustomFieldManager customFieldManager = ComponentAccessor.getCustomFieldManager();
 		CustomField reviewIdCustomField = customFieldManager.getCustomFieldObjectByName(CUSTOM_FIELD_REVIEWID);
+		
+		
+				
 		CustomField reviewLinkCustomField = customFieldManager.getCustomFieldObjectByName(CUSTOM_FIELD_REVIEWLINK);
+		Object reviewLinkObject = null;
+		if (reviewLinkCustomField == null || (reviewLinkObject = reviewLinkCustomField.getValue(issue)) == null) {
+			//try to load reviewLinkCustomField for issues that were created with plugin before version 2.2.1
+			reviewLinkCustomField = customFieldManager.getCustomFieldObjectByName(CUSTOM_FIELD_REVIEWLINK_V_2_1_1);
+			if (reviewLinkCustomField != null) reviewLinkObject = reviewLinkCustomField.getValue(issue);
+			if (reviewLinkObject != null) {
+				//Add reviewId to reviewLink
+				reviewLinkObject += reviewIdCustomField.getValue(issue).toString();
+			}
+		}		
+
 		CustomField reviewPhaseCustomField = customFieldManager.getCustomFieldObjectByName(CUSTOM_FIELD_REVIEWPHASE);
 		CustomField reviewParticipantsCustomField = customFieldManager.getCustomFieldObjectByName(CUSTOM_FIELD_REVIEWPARTICIPANTS);
 
@@ -59,7 +67,7 @@ public class ReviewInformationContext extends AbstractJiraContextProvider {
 		
 		Map contextMap = new HashMap();
 		contextMap.put("reviewId", reviewIdCustomField.getValue(issue));
-		contextMap.put("reviewLink", reviewLinkCustomField.getValue(issue));
+		contextMap.put("reviewLink", reviewLinkObject);
 		contextMap.put("reviewPhase", reviewPhaseCustomField.getValue(issue));
 		contextMap.put("reviewParticipants", participants);
 

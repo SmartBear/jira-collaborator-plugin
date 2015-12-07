@@ -19,7 +19,8 @@ public interface Constants {
 	public static final String COLLAB_URI = "/ui#review:id=";
 
 	public static final String COLLAB_PHASE_PLANNING = "PLANNING";
-	public static final String CUSTOM_FIELD_REVIEWLINK = "collabReviewLink";
+	public static final String CUSTOM_FIELD_REVIEWLINK_V_2_1_1 = "collabReviewLink";
+	public static final String CUSTOM_FIELD_REVIEWLINK = "Review Link";
 	public static final String CUSTOM_FIELD_REVIEWUPLOADEDCOMMITLIST = "collabReviewUploadedCommitList";
 	public static final String CUSTOM_FIELD_REVIEWID = "Review Id";
 	public static final String CUSTOM_FIELD_REVIEWPHASE = "Review Phase";

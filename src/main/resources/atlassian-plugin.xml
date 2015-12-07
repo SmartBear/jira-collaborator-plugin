@@ -79,8 +79,8 @@
 		key="review-web-panel" location="atl.jira.view.issue.right.context"
 		weight="1000">
 		<label key="review-web-panel.name" />
-		<resource name="view" type="velocity" location="review.vm" />
-		<condition class="com.smartbear.collaborator.condition.ShowIssueReviewInformation"/>	
-		<context-provider class="com.smartbear.collaborator.context.ReviewInformationContext" />
+		 <context-provider class="com.smartbear.collaborator.context.ReviewInformationContext" />
+		 <resource name="view" type="velocity" location="review.vm" />		
+		<condition class="com.smartbear.collaborator.condition.ShowIssueReviewInformation"/>
 	</web-panel>
 </atlassian-plugin>

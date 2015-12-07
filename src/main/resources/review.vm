@@ -3,8 +3,8 @@
 		<dl>
 			<dt>Link:</dt>
 			<dd>
-				<span><a href="$reviewLink$reviewId" target="_blank"
-					title="Collaborator Review">$reviewLink$reviewId</a></span>
+				<span><a href="$reviewLink" target="_blank"
+					title="Collaborator Review">$reviewLink</a></span>
 			</dd>
 		</dl>
 

@@ -42,6 +42,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ArrayNode;
 import org.codehaus.jackson.node.ObjectNode;
+import org.ofbiz.core.entity.GenericEntityException;
 
 import com.atlassian.sal.api.pluginsettings.PluginSettings;
 import com.atlassian.sal.api.pluginsettings.PluginSettingsFactory;
@@ -55,6 +56,7 @@ import com.smartbear.collaborator.json.collab.JsonCommand;
 import com.smartbear.collaborator.json.collab.JsonCommandResult;
 import com.smartbear.collaborator.json.collab.ScmToken;
 import com.smartbear.collaborator.json.fisheye.Repository;
+import com.smartbear.collaborator.util.BeanUtil;
 import com.smartbear.collaborator.util.Util;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
@@ -259,12 +261,25 @@ public class ConfigRest extends BaseRest {
 				restResponse.setStatusCode(RestResponse.STATUS_ERROR);
 				restResponse.setMessage("Fisheye URL has wrong format. Example: http(s)://host(:port)");
 			}
-
+			
 		} catch (UnsupportedEncodingException e) {
 			restResponse.setStatusCode(RestResponse.STATUS_ERROR);
 			restResponse.setMessage("Encoding exception has occured");
 			restResponse.setDescription(ExceptionUtils.getStackTrace(e));
 		}
+		try {
+		//Create custom fields if they are not already exist
+		BeanUtil.loadReviewIdCustomField(); 
+		BeanUtil.loadReviewLinkCustomField(); 
+		BeanUtil.loadReviewPhaseCustomField(); 
+		BeanUtil.loadReviewParticipantsCustomField(); 
+		BeanUtil.loadReviewUploadedCommitListCustomField();
+		} catch (GenericEntityException e) {
+			restResponse.setStatusCode(RestResponse.STATUS_ERROR);
+			restResponse.setMessage("Can't create custom fields");
+			restResponse.setDescription(ExceptionUtils.getStackTrace(e));
+		}
+		
 	}
 
 }

@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
@@ -41,6 +42,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
+
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.IOUtils;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -48,6 +50,7 @@ import org.codehaus.jackson.node.ArrayNode;
 import org.codehaus.jackson.node.ObjectNode;
 import org.codehaus.jackson.node.TextNode;
 import org.ofbiz.core.entity.GenericEntityException;
+
 import com.atlassian.jira.component.ComponentAccessor;
 import com.atlassian.jira.issue.CustomFieldManager;
 import com.atlassian.jira.issue.ModifiedValue;
@@ -57,6 +60,7 @@ import com.atlassian.jira.issue.context.JiraContextNode;
 import com.atlassian.jira.issue.customfields.CustomFieldSearcher;
 import com.atlassian.jira.issue.customfields.CustomFieldType;
 import com.atlassian.jira.issue.fields.CustomField;
+import com.atlassian.jira.issue.issuetype.IssueType;
 import com.atlassian.jira.issue.util.DefaultIssueChangeHolder;
 import com.atlassian.jira.issue.util.IssueChangeHolder;
 import com.atlassian.sal.api.pluginsettings.PluginSettings;
@@ -220,48 +224,11 @@ public class IssueRest extends BaseRest {
 	 * @throws GenericEntityException
 	 */
 	private void loadCustomFields() throws GenericEntityException {
-		CustomFieldManager customFieldManager = ComponentAccessor.getCustomFieldManager();
-		CustomFieldType fieldType = customFieldManager.getCustomFieldType("com.atlassian.jira.plugin.system.customfieldtypes:textfield");
-
-		CustomFieldSearcher fieldSearcher = null;
-		List searchers = customFieldManager.getCustomFieldSearchers(fieldType);
-		if (searchers != null && !searchers.isEmpty()) {
-			fieldSearcher = (CustomFieldSearcher) searchers.get(0);
-		}
-
-		List<JiraContextNode> contexts = new ArrayList<JiraContextNode>();
-		contexts.add(GlobalIssueContext.getInstance());
-
-		reviewIdCustomField = customFieldManager.getCustomFieldObjectByName(CUSTOM_FIELD_REVIEWID);
-		if (reviewIdCustomField == null) {
-			reviewIdCustomField = customFieldManager.createCustomField(CUSTOM_FIELD_REVIEWID, CUSTOM_FIELD_REVIEWID, fieldType, fieldSearcher, contexts, ComponentAccessor.getConstantsManager()
-					.getAllIssueTypes());
-		}
-
-		reviewLinkCustomField = customFieldManager.getCustomFieldObjectByName(CUSTOM_FIELD_REVIEWLINK);
-		if (reviewLinkCustomField == null) {
-			reviewLinkCustomField = customFieldManager.createCustomField(CUSTOM_FIELD_REVIEWLINK, CUSTOM_FIELD_REVIEWLINK, fieldType, fieldSearcher, contexts, ComponentAccessor.getConstantsManager()
-					.getAllIssueTypes());
-		}
-
-		reviewPhaseCustomField = customFieldManager.getCustomFieldObjectByName(CUSTOM_FIELD_REVIEWPHASE);
-		if (reviewPhaseCustomField == null) {
-			reviewPhaseCustomField = customFieldManager.createCustomField(CUSTOM_FIELD_REVIEWPHASE, CUSTOM_FIELD_REVIEWPHASE, fieldType, fieldSearcher, contexts, ComponentAccessor
-					.getConstantsManager().getAllIssueTypes());
-		}
-
-		reviewParticipantsCustomField = customFieldManager.getCustomFieldObjectByName(CUSTOM_FIELD_REVIEWPARTICIPANTS);
-		if (reviewParticipantsCustomField == null) {
-			reviewParticipantsCustomField = customFieldManager.createCustomField(CUSTOM_FIELD_REVIEWPARTICIPANTS, CUSTOM_FIELD_REVIEWPARTICIPANTS, fieldType, fieldSearcher, contexts,
-					ComponentAccessor.getConstantsManager().getAllIssueTypes());
-		}
-
-		reviewUploadedCommitListCustomField = customFieldManager.getCustomFieldObjectByName(CUSTOM_FIELD_REVIEWUPLOADEDCOMMITLIST);
-		if (reviewUploadedCommitListCustomField == null) {
-			reviewUploadedCommitListCustomField = customFieldManager.createCustomField(CUSTOM_FIELD_REVIEWUPLOADEDCOMMITLIST, CUSTOM_FIELD_REVIEWUPLOADEDCOMMITLIST, fieldType, fieldSearcher,
-					contexts, ComponentAccessor.getConstantsManager().getAllIssueTypes());
-		}
-
+		reviewIdCustomField = BeanUtil.loadReviewIdCustomField();
+		reviewLinkCustomField = BeanUtil.loadReviewLinkCustomField();
+		reviewPhaseCustomField = BeanUtil.loadReviewPhaseCustomField();
+		reviewParticipantsCustomField = BeanUtil.loadReviewParticipantsCustomField();
+		reviewUploadedCommitListCustomField = BeanUtil.loadReviewUploadedCommitListCustomField();
 	}
 
 	/**
@@ -733,7 +700,7 @@ public class IssueRest extends BaseRest {
 			issue.setCustomFieldValue(reviewIdCustomField, reviewId);
 			reviewIdCustomField.updateValue(null, issue, new ModifiedValue(null, reviewId), changeHolder);
 
-			String link = Util.getRestString(configModel.getUrl()) + COLLAB_URI;
+			String link = Util.getRestString(configModel.getUrl()) + COLLAB_URI + reviewId;
 			issue.setCustomFieldValue(reviewLinkCustomField, link);
 			reviewLinkCustomField.updateValue(null, issue, new ModifiedValue(null, link), changeHolder);
 
