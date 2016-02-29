@@ -254,69 +254,59 @@ public class IssueRest extends BaseRest {
 			String repositoriesResponseString = repositoriesResponse.getEntity(String.class);
 			
 			//Check response status code
-			if (repositoriesResponse.getStatus() == HttpURLConnection.HTTP_ACCEPTED || repositoriesResponse.getStatus() == HttpURLConnection.HTTP_CREATED
-					|| repositoriesResponse.getStatus() == HttpURLConnection.HTTP_OK) {
-							
-				ObjectMapper mapper = new ObjectMapper();
-				ObjectNode repositoriesResponseNode = (ObjectNode) mapper.readTree(repositoriesResponseString);
-				ArrayNode repositories = (ArrayNode) repositoriesResponseNode.get("repository");
-				for (Object repositoryObj : repositories) {
-					ObjectNode repository = (ObjectNode) repositoryObj;
-					String repositoryName = repository.get("name").asText();
+			checkResponseStatus(repositoriesResponse);			
+			ObjectMapper mapper = new ObjectMapper();
+			ObjectNode repositoriesResponseNode = (ObjectNode) mapper.readTree(repositoriesResponseString);
+			ArrayNode repositories = (ArrayNode) repositoriesResponseNode.get("repository");
+			for (Object repositoryObj : repositories) {
+				ObjectNode repository = (ObjectNode) repositoryObj;
+				String repositoryName = repository.get("name").asText();
 
-					//Get changesets from Fisheye for current repositoryName
-					WebResource changesetService = client.resource(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_CHANGESET_API + repositoryName
-							+ "&expand=changesets,revisions&comment=" + issueKey));
-					WebResource.Builder changesetBuilder = changesetService.getRequestBuilder();
-					changesetBuilder.header("Authorization", "Basic " + getFisheyeAuthStringEncoded(configModel));
-					changesetBuilder.header("Accept", "application/json");
+				//Get changesets from Fisheye for current repositoryName
+				WebResource changesetService = client.resource(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_CHANGESET_API + repositoryName
+						+ "&expand=changesets,revisions&comment=" + issueKey));
+				WebResource.Builder changesetBuilder = changesetService.getRequestBuilder();
+				changesetBuilder.header("Authorization", "Basic " + getFisheyeAuthStringEncoded(configModel));
+				changesetBuilder.header("Accept", "application/json");
 					
-					ClientResponse changesetResponse = changesetBuilder.get(ClientResponse.class);
-					String changesetResponseString = changesetResponse.getEntity(String.class);
+				ClientResponse changesetResponse = changesetBuilder.get(ClientResponse.class);
+				String changesetResponseString = changesetResponse.getEntity(String.class);
 					
-					if (changesetResponse.getStatus() == HttpURLConnection.HTTP_ACCEPTED || changesetResponse.getStatus() == HttpURLConnection.HTTP_CREATED
-							|| changesetResponse.getStatus() == HttpURLConnection.HTTP_OK) {
-						ObjectNode changesetResponseNode = (ObjectNode) mapper.readTree(changesetResponseString);
+				checkResponseStatus(changesetResponse);
+				ObjectNode changesetResponseNode = (ObjectNode) mapper.readTree(changesetResponseString);
 
-						ObjectNode changesetsNode = (ObjectNode) changesetResponseNode.get("changesets");
-						ArrayNode changesetArrayNode = (ArrayNode) changesetsNode.get("changeset");
-						for (Object changesetObj : changesetArrayNode) {
-							ObjectNode changesetNode = (ObjectNode) changesetObj;
-							//Fill changeset object with data
-							Changeset changeset = new Changeset();
-							changeset.setAuthor(changesetNode.get("author").asText());
-							changeset.setCsid(changesetNode.get("csid").asText());
-							changeset.setComment(changesetNode.get("comment").asText());
-							changeset.setRepositoryName(changesetNode.get("repositoryName").asText());
-							List<File> files = new ArrayList<File>();
-							ObjectNode revisionsNode = (ObjectNode) changesetNode.get("revisions");
-							ArrayNode revisionArrayNode = (ArrayNode) revisionsNode.get("revision");
-							for (Object revisionObj : revisionArrayNode) {
-								ObjectNode revisionNode = (ObjectNode) revisionObj;
-								//Fill file object with data
-								File file = new File();
-								file.setPath(revisionNode.get("path").asText());
-								file.setRev(revisionNode.get("rev").asText());
-								file.setContentLink(revisionNode.get("contentLink").asText());
-								ArrayNode ancestorArrayNode = (ArrayNode) revisionNode.get("ancestor");
-								for (Object ancestorObj : ancestorArrayNode) {
-									TextNode ancestorNode = (TextNode) ancestorObj;
-									file.setAncestor(ancestorNode.getTextValue());
-								}
-								file.setChangeType(revisionNode.get("fileRevisionState").asText());
-								files.add(file);
-							}
-							changeset.setFiles(files);
-							changesetList.add(changeset);
-						}					
-					} else {
-						throw new Exception(changesetResponseString);
-					}			
-				}
-			} else {
-				throw new Exception(repositoriesResponseString);
+				ObjectNode changesetsNode = (ObjectNode) changesetResponseNode.get("changesets");
+				ArrayNode changesetArrayNode = (ArrayNode) changesetsNode.get("changeset");
+				for (Object changesetObj : changesetArrayNode) {
+					ObjectNode changesetNode = (ObjectNode) changesetObj;
+					//Fill changeset object with data
+					Changeset changeset = new Changeset();
+					changeset.setAuthor(changesetNode.get("author").asText());
+					changeset.setCsid(changesetNode.get("csid").asText());
+					changeset.setComment(changesetNode.get("comment").asText());
+					changeset.setRepositoryName(changesetNode.get("repositoryName").asText());
+					List<File> files = new ArrayList<File>();
+					ObjectNode revisionsNode = (ObjectNode) changesetNode.get("revisions");
+					ArrayNode revisionArrayNode = (ArrayNode) revisionsNode.get("revision");
+					for (Object revisionObj : revisionArrayNode) {
+						ObjectNode revisionNode = (ObjectNode) revisionObj;
+						//Fill file object with data
+						File file = new File();
+						file.setPath(revisionNode.get("path").asText());
+						file.setRev(revisionNode.get("rev").asText());
+						file.setContentLink(revisionNode.get("contentLink").asText());
+						ArrayNode ancestorArrayNode = (ArrayNode) revisionNode.get("ancestor");
+						for (Object ancestorObj : ancestorArrayNode) {
+							TextNode ancestorNode = (TextNode) ancestorObj;
+							file.setAncestor(ancestorNode.getTextValue());
+						}
+						file.setChangeType(revisionNode.get("fileRevisionState").asText());
+						files.add(file);
+					}
+					changeset.setFiles(files);
+					changesetList.add(changeset);
+				}								
 			}
-
 			return changesetList;
 		} catch (Exception e) {
 			throw new Exception("Can't get FishEye changeset information for issue " + issueKey + ". Check please FishEye url and username/password.", e);
@@ -382,10 +372,35 @@ public class IssueRest extends BaseRest {
 			throw new Exception("Can't get FishEye repositories information. Check please FishEye url and username/password.", e);
 		}
 	}
+	
+	//Check if we really received file content and not Fisheye login page
+	//fix to COLLAB-1477
+	private static void checkRawFileResponse(ClientResponse response) throws Exception {		
+		checkResponseStatus(response);
+		
+		//This is the only way I see to check that Fisheye server returns file content
+		//and not login page as response status is 200OK in both cases.
+		if (!response.getMetadata().containsKey("Content-Disposition")) {
+			throw new Exception("For some reasons Fisheye authentication failed while downloading raw files. Check Fisheye credentials or try one more time a little bit later.");
+		}
+	}
+	
+	//Check that response status is 200OK or 201 or 202
+	private static void checkResponseStatus(ClientResponse response) throws Exception {
+		if (response == null) {
+			throw new Exception("Response from Fisheye server is null or empty.");
+		}
+		
+		if (response.getStatus() != HttpURLConnection.HTTP_OK && 
+				response.getStatus() != HttpURLConnection.HTTP_ACCEPTED && 
+				response.getStatus() != HttpURLConnection.HTTP_CREATED) {
+			throw new Exception(response.getEntity(String.class));	
+		}
+	}
 
 	
 	/**
-	 * Downloads raw files from fisheye, calculates checksum for each file and
+	 * Downloads raw files from Fisheye, calculates checksum for each file and
 	 * puts them to zip file
 	 * 
 	 * @param changesetList 
@@ -414,69 +429,74 @@ public class IssueRest extends BaseRest {
 			// zip file
 			for (Changeset changeset : changesetList) {
 
-					for (File file : changeset.getFiles()) {
+				for (File file : changeset.getFiles()) {
 
-						// Get raw file content from fisheye server
-						// Example
-						// http://nb-kpl:8060/browse/~raw,r=HEAD/svn_test/test/log.txt
-						urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + file.getContentLink());
+					// Get raw file content from Fisheye server
+					// Example
+					// http://nb-kpl:8060/browse/~raw,r=HEAD/svn_test/test/log.txt
+					urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + file.getContentLink());
+					client = Client.create();
+					service = client.resource(urlGetRawFileContent);
+					WebResource.Builder builder = service.getRequestBuilder();
+					builder.header("Authorization", "Basic " + getFisheyeAuthStringEncoded(configModel));
+					response = builder.get(ClientResponse.class);
+						
+					//Check that we really received file content
+					checkRawFileResponse(response);
+					
+					fileInputStream = response.getEntity(InputStream.class);
+					fileBytes = IOUtils.toByteArray(fileInputStream);
 
-						client = Client.create();
-						service = client.resource(urlGetRawFileContent);
-						WebResource.Builder builder = service.getRequestBuilder();
-						builder.header("Authorization", "Basic " + getFisheyeAuthStringEncoded(configModel));
-						response = builder.get(ClientResponse.class);
-						fileInputStream = response.getEntity(InputStream.class);
-						fileBytes = IOUtils.toByteArray(fileInputStream);
+					// Set calculated md5 for raw version
+					file.setMd5(calculateMd5(fileBytes));
 
-						// Set calculated md5 for raw version
-						file.setMd5(calculateMd5(fileBytes));
+					if (!zipEntryNames.contains(file.getMd5())) {
+						zipEntry = new ZipEntry(file.getMd5());
+						zipOutputStream.putNextEntry(zipEntry);
 
-						if (!zipEntryNames.contains(file.getMd5())) {
-							zipEntry = new ZipEntry(file.getMd5());
-							zipOutputStream.putNextEntry(zipEntry);
+						// write version to temp zip file
+						zipOutputStream.write(fileBytes);
 
-							// write version to temp zip file
-							zipOutputStream.write(fileBytes);
+						zipEntryNames.add(file.getMd5());
+					}
 
-							zipEntryNames.add(file.getMd5());
-						}
+					action = Util.getVersionAction(file.getChangeType());
 
-						action = Util.getVersionAction(file.getChangeType());
+					// Check if file was modified then download also
+					// previous version
+					if (action != null && action == Action.MODIFIED) {
 
-						// Check if file was modified then download also
-						// previous version
-						if (action != null && action == Action.MODIFIED) {
+						if (!Util.isEmpty(file.getAncestor())) {
 
+							urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + "/browse/~raw,r=" + file.getAncestor() + "/" + changeset.getRepositoryName() + "/" + file.getPath());
+							client = Client.create();
+							service = client.resource(urlGetRawFileContent);
+							response = service.get(ClientResponse.class);
+								
+							//Check that we really received file content
+							checkRawFileResponse(response);
 
-							if (!Util.isEmpty(file.getAncestor())) {
+							fileInputStream = response.getEntity(InputStream.class);
+							fileBytes = IOUtils.toByteArray(fileInputStream);
 
-								urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + "/browse/~raw,r=" + file.getAncestor() + "/" + changeset.getRepositoryName() + "/" + file.getPath());
+							// Set calculated md5 for raw version
+							file.setPreviousMd5(calculateMd5(fileBytes));
 
-								client = Client.create();
-								service = client.resource(urlGetRawFileContent);
-								response = service.get(ClientResponse.class);
-								fileInputStream = response.getEntity(InputStream.class);
-								fileBytes = IOUtils.toByteArray(fileInputStream);
+							if (!zipEntryNames.contains(file.getPreviousMd5())) {
+								zipEntry = new ZipEntry(file.getPreviousMd5());
+								zipOutputStream.putNextEntry(zipEntry);
 
-								// Set calculated md5 for raw version
-								file.setPreviousMd5(calculateMd5(fileBytes));
+								// write version to temp zip file
+								zipOutputStream.write(fileBytes);
 
-								if (!zipEntryNames.contains(file.getPreviousMd5())) {
-									zipEntry = new ZipEntry(file.getPreviousMd5());
-									zipOutputStream.putNextEntry(zipEntry);
-
-									// write version to temp zip file
-									zipOutputStream.write(fileBytes);
-
-									zipEntryNames.add(file.getPreviousMd5());
-								}
-
-							} else {
-								throw new Exception("Please, try to \"Create/Update Review\" a little bit later. FishEye server hasn't been refreshed commit info yet.");
+								zipEntryNames.add(file.getPreviousMd5());
 							}
+
+						} else {
+							throw new Exception("Please, try to \"Create/Update Review\" a little bit later. FishEye server hasn't been refreshed commit info yet.");
 						}
-					}				
+					}
+				}				
 			}
 
 			// close ZipEntry to store the stream to the file
