@@ -22,6 +22,7 @@ public class BaseVersion {
 	private String scmVersionName;
 	private Action action;
 	private FileSource source;
+	private CommitInfo commitInfo;
 
 	public String getScmPath() {
 		return scmPath;
@@ -62,6 +63,13 @@ public class BaseVersion {
 
 	public void setSource(FileSource source) {
 		this.source = source;
+	}
+	
+	public CommitInfo getCommitInfo() {
+		return commitInfo;
+	}
+	public void setCommitInfo(CommitInfo commitInfo) {
+		this.commitInfo = commitInfo;
 	}
 		
 }

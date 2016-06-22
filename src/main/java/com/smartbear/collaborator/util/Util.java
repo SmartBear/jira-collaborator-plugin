@@ -26,8 +26,6 @@ import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 
-import com.atlassian.jira.component.ComponentAccessor;
-import com.atlassian.jira.issue.IssueManager;
 import com.atlassian.sal.api.pluginsettings.PluginSettings;
 import com.smartbear.collaborator.admin.ConfigModel;
 import com.smartbear.collaborator.json.collab.Action;
@@ -53,7 +51,6 @@ public class Util {
 		try {
 			configModel.setFisheyeUrl(compileDomainUrl((String) settings.get(ConfigModel.class.getName() + ".fisheyeUrl")));
 		} catch (MalformedURLException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
@@ -81,19 +78,11 @@ public class Util {
 	}
 
 	public static String compileDomainUrl(String urlString) throws MalformedURLException {
-		if (urlString == null) {
-			throw new MalformedURLException();
+		String newUrlString = new URL(urlString).toString();
+		if (newUrlString.endsWith("/") || newUrlString.endsWith("\\")) {
+			newUrlString = newUrlString.substring(0, newUrlString.length() - 1);
 		}
-		StringBuilder sb = new StringBuilder();
-		URL url = new URL(urlString);
-		sb.append(url.getProtocol());
-		sb.append("://");
-		sb.append(url.getHost());
-		if (url.getPort() > 0) {
-			sb.append(":");
-			sb.append(url.getPort());
-		}
-		return sb.toString();
+		return newUrlString;
 	}
 	
 	public static String encodeURL(String urlString) throws MalformedURLException, URISyntaxException {		

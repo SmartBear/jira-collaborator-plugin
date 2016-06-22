@@ -29,8 +29,9 @@ public interface Constants {
 	public static final String REVIEW_MODEL = "review_model";
 	public static final String FISHEYE_REPOSITORIES_API = "/rest-service-fe/repositories-v1";
 	public static final String FISHEYE_ADMIN_REPOSITORIES_API = "/rest-service-fecru/admin/repositories";
+	public static final String FISHEYE_CHANGESET_LIST_API = "/rest-service-fe/changeset-v1/listChangesets?rep=";	
+	public static final String FISHEYE_CHANGESET_API = "/rest-service-fe/revisionData-v1/changeset/";	
 	
-	public static final String FISHEYE_CHANGESET_API = "/rest-service-fe/changeset-v1/listChangesets?rep=";	
 	public static final String URI_COLAB_JSON = "/services/json/v1";
 	public static final String URI_COLAB_UPLOAD = "/contentupload";
 	

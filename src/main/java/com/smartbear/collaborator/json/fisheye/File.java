@@ -16,7 +16,12 @@
 package com.smartbear.collaborator.json.fisheye;
 
 import java.net.URL;
+import java.util.Date;
 
+/**
+ * @author kpl
+ *
+ */
 public class File {
 	private String path;
 	private URL url;
@@ -28,6 +33,9 @@ public class File {
 	private String rev;
 	private String ancestor;
 	private String contentLink;
+	private Date previousCommitDate;
+	private String previousCommitAuthor;
+	private String previousCommitComment;
 
 	public String getPath() {
 		return path;
@@ -109,7 +117,28 @@ public class File {
 	public void setContentLink(String contentLink) {
 		this.contentLink = contentLink;
 	}
-	
-	
-	
+
+	public Date getPreviousCommitDate() {
+		return previousCommitDate;
+	}
+
+	public void setPreviousCommitDate(Date previousCommitDate) {
+		this.previousCommitDate = previousCommitDate;
+	}
+
+	public String getPreviousCommitAuthor() {
+		return previousCommitAuthor;
+	}
+
+	public void setPreviousCommitAuthor(String previousCommitAuthor) {
+		this.previousCommitAuthor = previousCommitAuthor;
+	}
+
+	public String getPreviousCommitComment() {
+		return previousCommitComment;
+	}
+
+	public void setPreviousCommitComment(String previousCommitComment) {
+		this.previousCommitComment = previousCommitComment;
+	}	
 }

@@ -24,6 +24,7 @@ import java.net.URL;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -51,16 +52,9 @@ import org.codehaus.jackson.node.ObjectNode;
 import org.codehaus.jackson.node.TextNode;
 import org.ofbiz.core.entity.GenericEntityException;
 
-import com.atlassian.jira.component.ComponentAccessor;
-import com.atlassian.jira.issue.CustomFieldManager;
 import com.atlassian.jira.issue.ModifiedValue;
 import com.atlassian.jira.issue.MutableIssue;
-import com.atlassian.jira.issue.context.GlobalIssueContext;
-import com.atlassian.jira.issue.context.JiraContextNode;
-import com.atlassian.jira.issue.customfields.CustomFieldSearcher;
-import com.atlassian.jira.issue.customfields.CustomFieldType;
 import com.atlassian.jira.issue.fields.CustomField;
-import com.atlassian.jira.issue.issuetype.IssueType;
 import com.atlassian.jira.issue.util.DefaultIssueChangeHolder;
 import com.atlassian.jira.issue.util.IssueChangeHolder;
 import com.atlassian.sal.api.pluginsettings.PluginSettings;
@@ -230,6 +224,15 @@ public class IssueRest extends BaseRest {
 		reviewParticipantsCustomField = BeanUtil.loadReviewParticipantsCustomField();
 		reviewUploadedCommitListCustomField = BeanUtil.loadReviewUploadedCommitListCustomField();
 	}
+	
+	private static ClientResponse getFisheyeClientResponse(String encodedUrl, ConfigModel configModel) {
+		Client client = Client.create();
+		WebResource changesetService = client.resource(encodedUrl);
+		WebResource.Builder changesetBuilder = changesetService.getRequestBuilder();
+		changesetBuilder.header("Authorization", "Basic " + getFisheyeAuthStringEncoded(configModel));
+		changesetBuilder.header("Accept", "application/json");		
+		return changesetBuilder.get(ClientResponse.class);
+	}
 
 	/**
 	 * Gets changeset list from Fisheye for current issue key
@@ -245,12 +248,7 @@ public class IssueRest extends BaseRest {
 			List<Changeset> changesetList = new ArrayList<Changeset>();
 			Client client = Client.create();
 			//Get available repositories from Fisheye
-			WebResource repositoriesService = client.resource(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_REPOSITORIES_API));
-			WebResource.Builder repositoriesBuilder = repositoriesService.getRequestBuilder();
-			repositoriesBuilder.header("Authorization", "Basic " + getFisheyeAuthStringEncoded(configModel));
-			repositoriesBuilder.header("Accept", "application/json");
-
-			ClientResponse repositoriesResponse = repositoriesBuilder.get(ClientResponse.class);
+			ClientResponse repositoriesResponse = getFisheyeClientResponse(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_REPOSITORIES_API), configModel);
 			String repositoriesResponseString = repositoriesResponse.getEntity(String.class);
 			
 			//Check response status code
@@ -262,14 +260,9 @@ public class IssueRest extends BaseRest {
 				ObjectNode repository = (ObjectNode) repositoryObj;
 				String repositoryName = repository.get("name").asText();
 
-				//Get changesets from Fisheye for current repositoryName
-				WebResource changesetService = client.resource(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_CHANGESET_API + repositoryName
-						+ "&expand=changesets,revisions&comment=" + issueKey));
-				WebResource.Builder changesetBuilder = changesetService.getRequestBuilder();
-				changesetBuilder.header("Authorization", "Basic " + getFisheyeAuthStringEncoded(configModel));
-				changesetBuilder.header("Accept", "application/json");
-					
-				ClientResponse changesetResponse = changesetBuilder.get(ClientResponse.class);
+				//Get changesets from Fisheye for current repositoryName				
+				ClientResponse changesetResponse = getFisheyeClientResponse(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_CHANGESET_LIST_API + repositoryName
+						+ "&expand=changesets,revisions&comment=" + issueKey), configModel);
 				String changesetResponseString = changesetResponse.getEntity(String.class);
 					
 				checkResponseStatus(changesetResponse);
@@ -285,6 +278,7 @@ public class IssueRest extends BaseRest {
 					changeset.setCsid(changesetNode.get("csid").asText());
 					changeset.setComment(changesetNode.get("comment").asText());
 					changeset.setRepositoryName(changesetNode.get("repositoryName").asText());
+					changeset.setDate(new Date(changesetNode.get("date").asLong()));
 					List<File> files = new ArrayList<File>();
 					ObjectNode revisionsNode = (ObjectNode) changesetNode.get("revisions");
 					ArrayNode revisionArrayNode = (ArrayNode) revisionsNode.get("revision");
@@ -434,39 +428,53 @@ public class IssueRest extends BaseRest {
 					// Get raw file content from Fisheye server
 					// Example
 					// http://nb-kpl:8060/browse/~raw,r=HEAD/svn_test/test/log.txt
-					urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + file.getContentLink());
-					client = Client.create();
-					service = client.resource(urlGetRawFileContent);
-					WebResource.Builder builder = service.getRequestBuilder();
-					builder.header("Authorization", "Basic " + getFisheyeAuthStringEncoded(configModel));
-					response = builder.get(ClientResponse.class);
-						
-					//Check that we really received file content
-					checkRawFileResponse(response);
 					
-					fileInputStream = response.getEntity(InputStream.class);
-					fileBytes = IOUtils.toByteArray(fileInputStream);
-
+					action = Util.getVersionAction(file.getChangeType());
+					if (action == null) { continue; }
+						
+					if (action == Action.DELETED) {
+						fileBytes = new byte[0];
+					} else {
+						urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + file.getContentLink());
+						client = Client.create();
+						service = client.resource(urlGetRawFileContent);
+						WebResource.Builder builder = service.getRequestBuilder();
+						builder.header("Authorization", "Basic " + getFisheyeAuthStringEncoded(configModel));
+						response = builder.get(ClientResponse.class);
+							
+						//Check that we really received file content
+						checkRawFileResponse(response);
+						
+						fileInputStream = response.getEntity(InputStream.class);
+						fileBytes = IOUtils.toByteArray(fileInputStream);
+					}
 					// Set calculated md5 for raw version
 					file.setMd5(calculateMd5(fileBytes));
+					
 
 					if (!zipEntryNames.contains(file.getMd5())) {
 						zipEntry = new ZipEntry(file.getMd5());
 						zipOutputStream.putNextEntry(zipEntry);
 
-						// write version to temp zip file
+					// write version to temp zip file
 						zipOutputStream.write(fileBytes);
 
 						zipEntryNames.add(file.getMd5());
 					}
-
-					action = Util.getVersionAction(file.getChangeType());
-
-					// Check if file was modified then download also
+					
+					
+					// Check if file was modified/deleted then download also
 					// previous version
-					if (action != null && action == Action.MODIFIED) {
+					if (action == Action.MODIFIED || action == Action.DELETED) {
 
 						if (!Util.isEmpty(file.getAncestor())) {
+							
+							ClientResponse ancestorChangesetResp = getFisheyeClientResponse(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_CHANGESET_API + changeset.getRepositoryName() + "/" + file.getAncestor()), configModel);
+							String ancestorChangesetRespString = ancestorChangesetResp.getEntity(String.class);
+							ObjectNode ancestorChangesetNode = (ObjectNode) mapper.readTree(ancestorChangesetRespString);
+							file.setPreviousCommitAuthor(ancestorChangesetNode.get("author").asText());
+							file.setPreviousCommitDate(new Date(ancestorChangesetNode.get("date").asLong()));
+							file.setPreviousCommitComment(ancestorChangesetNode.get("comment").asText());
 
 							urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + "/browse/~raw,r=" + file.getAncestor() + "/" + changeset.getRepositoryName() + "/" + file.getPath());
 							client = Client.create();
@@ -821,18 +829,21 @@ public class IssueRest extends BaseRest {
 
 						version.setScmVersionName(file.getRev());
 						Action action = Util.getVersionAction(file.getChangeType());
+						if (action == null) { continue; }
 						version.setAction(action);
 						version.setSource(FileSource.CHECKEDIN);
 
-						// Check if file was modified then add base version to
+						// Check if file was modified/deleted then add base version to
 						// changelist
-						if (action != null && action == Action.MODIFIED) {
+						if (action == Action.MODIFIED || action == Action.DELETED) {
 							BaseVersion baseVersion = new BaseVersion();
 							baseVersion.setScmPath(file.getPath());
 							baseVersion.setScmVersionName(file.getAncestor());
 							baseVersion.setMd5(file.getPreviousMd5());
 							baseVersion.setSource(FileSource.CHECKEDIN);
 							baseVersion.setAction(Action.MODIFIED);
+							baseVersion.setCommitInfo(new CommitInfo(file.getAncestor(), file.getPreviousCommitAuthor(), 
+																	 file.getPreviousCommitComment(), file.getPreviousCommitDate()));
 							version.setBaseVersion(baseVersion);
 						}
 
