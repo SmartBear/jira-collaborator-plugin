@@ -52,6 +52,8 @@ import org.codehaus.jackson.node.ObjectNode;
 import org.codehaus.jackson.node.TextNode;
 import org.ofbiz.core.entity.GenericEntityException;
 
+import com.atlassian.extras.common.log.Logger;
+import com.atlassian.extras.common.log.Logger.Log;
 import com.atlassian.jira.issue.ModifiedValue;
 import com.atlassian.jira.issue.MutableIssue;
 import com.atlassian.jira.issue.fields.CustomField;
@@ -88,6 +90,8 @@ import static com.smartbear.collaborator.util.Constants.*;
  */
 @Path("/issue")
 public class IssueRest extends BaseRest {
+	
+	private static final Log LOGGER = Logger.getInstance(IssueRest.class);
 
 	/* Custom fields of issue where review information is stored */
 	private CustomField reviewIdCustomField;
@@ -176,6 +180,7 @@ public class IssueRest extends BaseRest {
 			}
 
 		} catch (Exception e) {
+			LOGGER.error(e);
 			restResponse.setStatusCode(RestResponse.STATUS_ERROR);
 			restResponse.setMessage(e.getMessage());
 
@@ -225,12 +230,14 @@ public class IssueRest extends BaseRest {
 		reviewUploadedCommitListCustomField = BeanUtil.loadReviewUploadedCommitListCustomField();
 	}
 	
-	private static ClientResponse getFisheyeClientResponse(String encodedUrl, ConfigModel configModel) {
+	private static ClientResponse getFisheyeClientResponse(String encodedUrl, ConfigModel configModel, boolean acceptJson) {
 		Client client = Client.create();
-		WebResource changesetService = client.resource(encodedUrl);
-		WebResource.Builder changesetBuilder = changesetService.getRequestBuilder();
+		WebResource service = client.resource(encodedUrl);
+		WebResource.Builder changesetBuilder = service.getRequestBuilder();
 		changesetBuilder.header("Authorization", "Basic " + getFisheyeAuthStringEncoded(configModel));
-		changesetBuilder.header("Accept", "application/json");		
+		if (acceptJson) {
+			changesetBuilder.header("Accept", "application/json");
+		}
 		return changesetBuilder.get(ClientResponse.class);
 	}
 
@@ -248,8 +255,12 @@ public class IssueRest extends BaseRest {
 			List<Changeset> changesetList = new ArrayList<Changeset>();
 			Client client = Client.create();
 			//Get available repositories from Fisheye
-			ClientResponse repositoriesResponse = getFisheyeClientResponse(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_REPOSITORIES_API), configModel);
+			String reposUrl = Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_REPOSITORIES_API);
+			ClientResponse repositoriesResponse = getFisheyeClientResponse(reposUrl, configModel, true);
 			String repositoriesResponseString = repositoriesResponse.getEntity(String.class);
+			
+			LOGGER.debug("Request to Fisheye: " + reposUrl);
+			LOGGER.debug("Response from Fisheye" + repositoriesResponseString);
 			
 			//Check response status code
 			checkResponseStatus(repositoriesResponse);			
@@ -257,52 +268,65 @@ public class IssueRest extends BaseRest {
 			ObjectNode repositoriesResponseNode = (ObjectNode) mapper.readTree(repositoriesResponseString);
 			ArrayNode repositories = (ArrayNode) repositoriesResponseNode.get("repository");
 			for (Object repositoryObj : repositories) {
-				ObjectNode repository = (ObjectNode) repositoryObj;
-				String repositoryName = repository.get("name").asText();
+				String changesetResponseString = null;
+				String changesetUrl = null;
+				try {
+					ObjectNode repository = (ObjectNode) repositoryObj;
+					String repositoryName = repository.get("name").asText();
 
-				//Get changesets from Fisheye for current repositoryName				
-				ClientResponse changesetResponse = getFisheyeClientResponse(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_CHANGESET_LIST_API + repositoryName
-						+ "&expand=changesets,revisions&comment=" + issueKey), configModel);
-				String changesetResponseString = changesetResponse.getEntity(String.class);
-					
-				checkResponseStatus(changesetResponse);
-				ObjectNode changesetResponseNode = (ObjectNode) mapper.readTree(changesetResponseString);
+					// Get changesets from Fisheye for current repositoryName
+					changesetUrl = Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_CHANGESET_LIST_API + repositoryName + "&expand=changesets,revisions&comment=" + issueKey);
 
-				ObjectNode changesetsNode = (ObjectNode) changesetResponseNode.get("changesets");
-				ArrayNode changesetArrayNode = (ArrayNode) changesetsNode.get("changeset");
-				for (Object changesetObj : changesetArrayNode) {
-					ObjectNode changesetNode = (ObjectNode) changesetObj;
-					//Fill changeset object with data
-					Changeset changeset = new Changeset();
-					changeset.setAuthor(changesetNode.get("author").asText());
-					changeset.setCsid(changesetNode.get("csid").asText());
-					changeset.setComment(changesetNode.get("comment").asText());
-					changeset.setRepositoryName(changesetNode.get("repositoryName").asText());
-					changeset.setDate(new Date(changesetNode.get("date").asLong()));
-					List<File> files = new ArrayList<File>();
-					ObjectNode revisionsNode = (ObjectNode) changesetNode.get("revisions");
-					ArrayNode revisionArrayNode = (ArrayNode) revisionsNode.get("revision");
-					for (Object revisionObj : revisionArrayNode) {
-						ObjectNode revisionNode = (ObjectNode) revisionObj;
-						//Fill file object with data
-						File file = new File();
-						file.setPath(revisionNode.get("path").asText());
-						file.setRev(revisionNode.get("rev").asText());
-						file.setContentLink(revisionNode.get("contentLink").asText());
-						ArrayNode ancestorArrayNode = (ArrayNode) revisionNode.get("ancestor");
-						for (Object ancestorObj : ancestorArrayNode) {
-							TextNode ancestorNode = (TextNode) ancestorObj;
-							file.setAncestor(ancestorNode.getTextValue());
+					ClientResponse changesetResponse = getFisheyeClientResponse(changesetUrl, configModel, true);
+					changesetResponseString = changesetResponse.getEntity(String.class);
+
+					LOGGER.debug("Request to Fisheye: " + changesetUrl);
+					LOGGER.debug("Response from Fisheye" + changesetResponseString);
+
+					checkResponseStatus(changesetResponse);
+					ObjectNode changesetResponseNode = (ObjectNode) mapper.readTree(changesetResponseString);
+
+					ObjectNode changesetsNode = (ObjectNode) changesetResponseNode.get("changesets");
+					ArrayNode changesetArrayNode = (ArrayNode) changesetsNode.get("changeset");
+					for (Object changesetObj : changesetArrayNode) {
+						ObjectNode changesetNode = (ObjectNode) changesetObj;
+						// Fill changeset object with data
+						Changeset changeset = new Changeset();
+						changeset.setAuthor(changesetNode.get("author").asText());
+						changeset.setCsid(changesetNode.get("csid").asText());
+						changeset.setComment(changesetNode.get("comment").asText());
+						changeset.setRepositoryName(changesetNode.get("repositoryName").asText());
+						changeset.setDate(new Date(changesetNode.get("date").asLong()));
+						List<File> files = new ArrayList<File>();
+						ObjectNode revisionsNode = (ObjectNode) changesetNode.get("revisions");
+						ArrayNode revisionArrayNode = (ArrayNode) revisionsNode.get("revision");
+						for (Object revisionObj : revisionArrayNode) {
+							ObjectNode revisionNode = (ObjectNode) revisionObj;
+							// Fill file object with data
+							File file = new File();
+							file.setPath(revisionNode.get("path").asText());
+							file.setRev(revisionNode.get("rev").asText());
+							file.setContentLink(revisionNode.get("contentLink").asText());
+							ArrayNode ancestorArrayNode = (ArrayNode) revisionNode.get("ancestor");
+							for (Object ancestorObj : ancestorArrayNode) {
+								TextNode ancestorNode = (TextNode) ancestorObj;
+								file.setAncestor(ancestorNode.getTextValue());
+							}
+							file.setChangeType(revisionNode.get("fileRevisionState").asText());
+							files.add(file);
 						}
-						file.setChangeType(revisionNode.get("fileRevisionState").asText());
-						files.add(file);
+						changeset.setFiles(files);
+						changesetList.add(changeset);
 					}
-					changeset.setFiles(files);
-					changesetList.add(changeset);
-				}								
+				} catch (Exception e) {
+					LOGGER.error("Request to Fisheye: " + changesetUrl);
+					LOGGER.info("Response from Fisheye" + changesetResponseString);
+					LOGGER.error(e);
+				}	
 			}
 			return changesetList;
 		} catch (Exception e) {
+			LOGGER.error(e);
 			throw new Exception("Can't get FishEye changeset information for issue " + issueKey + ". Check please FishEye url and username/password.", e);
 		}	
 	}
@@ -363,6 +387,7 @@ public class IssueRest extends BaseRest {
 			return repositoryMap;
 
 		} catch (Exception e) {
+			LOGGER.error(e);
 			throw new Exception("Can't get FishEye repositories information. Check please FishEye url and username/password.", e);
 		}
 	}
@@ -380,7 +405,7 @@ public class IssueRest extends BaseRest {
 	}
 	
 	//Check that response status is 200OK or 201 or 202
-	private static void checkResponseStatus(ClientResponse response) throws Exception {
+	private static void checkResponseStatus(ClientResponse response) throws Exception {		
 		if (response == null) {
 			throw new Exception("Response from Fisheye server is null or empty.");
 		}
@@ -388,7 +413,7 @@ public class IssueRest extends BaseRest {
 		if (response.getStatus() != HttpURLConnection.HTTP_OK && 
 				response.getStatus() != HttpURLConnection.HTTP_ACCEPTED && 
 				response.getStatus() != HttpURLConnection.HTTP_CREATED) {
-			throw new Exception(response.getEntity(String.class));	
+			throw new Exception("Response status is " + response.getStatus());
 		}
 	}
 
@@ -404,18 +429,19 @@ public class IssueRest extends BaseRest {
 	private java.io.File downloadRawFilesFromFisheye(List<Changeset> changesetList) throws Exception {
 		// Create temp zip file where versions will be put
 		java.io.File targetZipFile = java.io.File.createTempFile("store-", ".zip");
+		String urlGetRawFileContent = null;
+		byte[] fileBytes = null;
 		try {
 
 			FileOutputStream fileOutputStream = new FileOutputStream(targetZipFile);
 			ZipOutputStream zipOutputStream = new ZipOutputStream(fileOutputStream);
 			HashSet<String> zipEntryNames = new HashSet<String>();
 
-			Client client;
-			String urlGetRawFileContent;
+			Client client;		
 			WebResource service;
 			ClientResponse response;
 			InputStream fileInputStream;
-			byte[] fileBytes;
+			
 			ZipEntry zipEntry;
 			Action action;
 
@@ -436,17 +462,16 @@ public class IssueRest extends BaseRest {
 						fileBytes = new byte[0];
 					} else {
 						urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + file.getContentLink());
-						client = Client.create();
-						service = client.resource(urlGetRawFileContent);
-						WebResource.Builder builder = service.getRequestBuilder();
-						builder.header("Authorization", "Basic " + getFisheyeAuthStringEncoded(configModel));
-						response = builder.get(ClientResponse.class);
-							
-						//Check that we really received file content
-						checkRawFileResponse(response);
-						
+						response = getFisheyeClientResponse(urlGetRawFileContent, configModel, false);				
+										
 						fileInputStream = response.getEntity(InputStream.class);
 						fileBytes = IOUtils.toByteArray(fileInputStream);
+						
+						LOGGER.debug("Request to Fisheye: " + urlGetRawFileContent);
+						LOGGER.debug("Response from Fisheye" + new String(fileBytes));
+						
+						//Check that we really received file content
+						checkRawFileResponse(response);
 					}
 					// Set calculated md5 for raw version
 					file.setMd5(calculateMd5(fileBytes));
@@ -469,23 +494,24 @@ public class IssueRest extends BaseRest {
 
 						if (!Util.isEmpty(file.getAncestor())) {
 							
-							ClientResponse ancestorChangesetResp = getFisheyeClientResponse(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_CHANGESET_API + changeset.getRepositoryName() + "/" + file.getAncestor()), configModel);
+							ClientResponse ancestorChangesetResp = getFisheyeClientResponse(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_CHANGESET_API + changeset.getRepositoryName() + "/" + file.getAncestor()), configModel, true);
 							String ancestorChangesetRespString = ancestorChangesetResp.getEntity(String.class);
 							ObjectNode ancestorChangesetNode = (ObjectNode) mapper.readTree(ancestorChangesetRespString);
 							file.setPreviousCommitAuthor(ancestorChangesetNode.get("author").asText());
 							file.setPreviousCommitDate(new Date(ancestorChangesetNode.get("date").asLong()));
 							file.setPreviousCommitComment(ancestorChangesetNode.get("comment").asText());
 
-							urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + "/browse/~raw,r=" + file.getAncestor() + "/" + changeset.getRepositoryName() + "/" + file.getPath());
-							client = Client.create();
-							service = client.resource(urlGetRawFileContent);
-							response = service.get(ClientResponse.class);
+							urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + "/browse/~raw,r=" + file.getAncestor() + "/" + changeset.getRepositoryName() + "/" + file.getPath());				
+							response = getFisheyeClientResponse(urlGetRawFileContent, configModel, false);
+								
+							fileInputStream = response.getEntity(InputStream.class);
+							fileBytes = IOUtils.toByteArray(fileInputStream);
+							
+							LOGGER.debug("Request to Fisheye: " + urlGetRawFileContent);
+							LOGGER.debug("Response from Fisheye" + new String(fileBytes));
 								
 							//Check that we really received file content
 							checkRawFileResponse(response);
-
-							fileInputStream = response.getEntity(InputStream.class);
-							fileBytes = IOUtils.toByteArray(fileInputStream);
 
 							// Set calculated md5 for raw version
 							file.setPreviousMd5(calculateMd5(fileBytes));
@@ -501,7 +527,9 @@ public class IssueRest extends BaseRest {
 							}
 
 						} else {
-							throw new Exception("Please, try to \"Create/Update Review\" a little bit later. FishEye server hasn't been refreshed commit info yet.");
+							String errorMsg = "Please, try to \"Create/Update Review\" a little bit later. FishEye server hasn't been refreshed commit info yet.";
+							LOGGER.error(errorMsg);
+							throw new Exception(errorMsg);
 						}
 					}
 				}				
@@ -514,7 +542,9 @@ public class IssueRest extends BaseRest {
 			return targetZipFile;
 
 		} catch (Exception e) {
-			throw new Exception("Can't download raw versions from FishEye server. Check that FishEye server is running. \n " + e.getMessage());
+			LOGGER.error("Request URL to Fisheye: " + urlGetRawFileContent, e);
+			LOGGER.error("Response from Fisheye: " + (fileBytes != null ? new String(fileBytes) : ""), e);
+			throw new Exception("Can't download raw versions from FishEye server. Check that FishEye server is running. \n " + "Request URL to Fisheye: " + urlGetRawFileContent + "\n" + e.getMessage());
 		}
 
 	}
@@ -571,6 +601,7 @@ public class IssueRest extends BaseRest {
 			}
 
 		} catch (Exception e) {
+			LOGGER.error(e);
 			throw new Exception("Can't upload raw versions to Collaborator Server. Check plugin collaborator configuration (url, login, password).", e);
 		} finally {
 			if (httpUrlConnection != null) {
@@ -636,6 +667,7 @@ public class IssueRest extends BaseRest {
 			pluginSettings.put(ConfigModel.class.getName() + ".authTicket", URLDecoder.decode(configModel.getAuthTicket(), "UTF-8"));
 
 		} catch (Exception e) {
+			LOGGER.error(e);
 			throw new Exception("Can't update authentification ticket for Collaborator Server.\n " + e.getMessage());
 		}
 
@@ -678,6 +710,7 @@ public class IssueRest extends BaseRest {
 			return null;
 
 		} catch (Exception e) {
+			LOGGER.error(e);
 			throw new Exception("Can't get Collab username.\n " + e.getMessage());
 		}
 
@@ -738,6 +771,7 @@ public class IssueRest extends BaseRest {
 			return reviewId;
 
 		} catch (Exception e) {
+			LOGGER.error(e);
 			throw new Exception("Can't create new review on Collaborator Server.\n " + e.getMessage());
 		}
 
@@ -784,9 +818,9 @@ public class IssueRest extends BaseRest {
 			reviewParticipantsCustomField.updateValue(null, issue, new ModifiedValue(null, collabUserInfo.getFullName()), changeHolder);
 
 		} catch (Exception e) {
+			LOGGER.error(e);
 			throw new Exception("Can't add author " + collabUserInfo.getFullName() + " to review #" +reviewId + " on Collaborator Server.\n " + e.getMessage());
 		}
-
 	}
 	
 		
@@ -875,6 +909,7 @@ public class IssueRest extends BaseRest {
 			getResultMap(mapper.readValue(responseString, JsonCommandResult[].class));
 
 		} catch (Exception e) {
+			LOGGER.error(e);
 			throw new Exception("Can't addchangelists to Collaborator Server.\n " + e.getMessage());
 		}
 	}
