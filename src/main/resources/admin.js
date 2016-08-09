@@ -31,7 +31,7 @@ AJS.toInit(function() {
 	      '", "fisheyeUrl": "' + encodeURIComponent(AJS.$("#fisheyeUrl").attr("value")) +
 	      '", "fisheyeLogin": "' + encodeURIComponent(AJS.$("#fisheyeLogin").attr("value")) +
 	      '", "fisheyePassword": "' + encodeURIComponent(AJS.$("#fisheyePassword").attr("value")) +
-	      '", "allowEmptyReviewCreation": "' + encodeURIComponent(AJS.$("#jiraAllowEmptyReviewCreation").checked) +
+	      '", "allowEmptyReviewCreation": "' + encodeURIComponent(AJS.$("#jiraAllowEmptyReviewCreation").is(":checked")) +
 	      '", "projectKey": "' + encodeURIComponent(AJS.$("#projectKey").attr("value")) + '"}';
 	  }
 
@@ -51,8 +51,8 @@ AJS.toInit(function() {
 	        AJS.$("#fisheyePassword").attr("value", config.fisheyePassword === undefined ? '' : decodeURIComponent(config.fisheyePassword));
 
 	        var stringAllowEmptyReviewCreation = config.allowEmptyReviewCreation === undefined ? '' : decodeURIComponent(config.allowEmptyReviewCreation);
-	        var boolAllowEmptyReviewCreation = allowEmptyReviewCreation.toLowerCase() === 'true';
-	        AJS.$("#jiraAllowEmptyReviewCreation").checked = boolAllowEmptyReviewCreation;
+	        var boolAllowEmptyReviewCreation = stringAllowEmptyReviewCreation.toLowerCase() === 'true';
+	        AJS.$("#jiraAllowEmptyReviewCreation").prop("checked", boolAllowEmptyReviewCreation);
 	      }
 	    });
 	    checkSecureProtocol();
