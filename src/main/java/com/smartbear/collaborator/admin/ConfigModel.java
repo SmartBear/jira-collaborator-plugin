@@ -46,6 +46,9 @@ public class ConfigModel {
 	@XmlElement
 	private String fisheyeUrl;
 	
+	@XmlElement
+	private Boolean allowEmptyReviewCreation;
+	
 	public String getUrl() {
 		return url;
 	}
@@ -109,5 +112,13 @@ public class ConfigModel {
 	public void setFisheyeUrl(String fisheyeUrl) {
 		this.fisheyeUrl = fisheyeUrl;
 	}
-		
+
+	public Boolean getAllowEmptyReviewCreation() {
+		return allowEmptyReviewCreation;
+	}
+
+	public void setAllowEmptyReviewCreation(Boolean allowEmptyReviewCreation) {
+		this.allowEmptyReviewCreation = allowEmptyReviewCreation;
+	}
+	
 }

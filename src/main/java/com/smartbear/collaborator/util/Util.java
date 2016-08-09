@@ -47,6 +47,7 @@ public class Util {
 		configModel.setFisheyeLogin((String) settings.get(ConfigModel.class.getName() + ".fisheyeLogin"));
 		configModel.setFisheyePassword((String) settings.get(ConfigModel.class.getName() + ".fisheyePassword"));		
 		configModel.setAuthTicket((String) settings.get(ConfigModel.class.getName() + ".authTicket"));
+		configModel.setAllowEmptyReviewCreation(Boolean.valueOf((String) settings.get(ConfigModel.class.getName() + ".allowEmptyReviewCreation")));
 		
 		try {
 			configModel.setFisheyeUrl(compileDomainUrl((String) settings.get(ConfigModel.class.getName() + ".fisheyeUrl")));

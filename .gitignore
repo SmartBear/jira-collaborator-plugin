@@ -5,3 +5,6 @@
 # (it should return nothing) 
 
 target/
+
+# Ignore open files in Vim
+*.swp
