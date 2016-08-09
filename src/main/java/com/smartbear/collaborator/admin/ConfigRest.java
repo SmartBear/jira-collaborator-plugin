@@ -254,6 +254,7 @@ public class ConfigRest extends BaseRest {
 
 			pluginSettings.put(ConfigModel.class.getName() + ".fisheyeLogin", URLDecoder.decode(configModel.getFisheyeLogin(), "UTF-8"));
 			pluginSettings.put(ConfigModel.class.getName() + ".fisheyePassword", URLDecoder.decode(configModel.getFisheyePassword(), "UTF-8"));
+			pluginSettings.put(ConfigModel.class.getName() + ".allowEmptyReviewCreation", URLDecoder.decode(configModel.getAllowEmptyReviewCreation().toString(), "UTF-8"));
 
 			try {
 				pluginSettings.put(ConfigModel.class.getName() + ".fisheyeUrl", Util.compileDomainUrl(URLDecoder.decode(configModel.getFisheyeUrl(), "UTF-8")));
