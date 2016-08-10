@@ -66,6 +66,7 @@ import com.atlassian.sal.api.transaction.TransactionTemplate;
 import com.atlassian.sal.api.user.UserManager;
 import com.smartbear.collaborator.BaseRest;
 import com.smartbear.collaborator.admin.ConfigModel;
+import com.smartbear.collaborator.admin.ConfigRest;
 import com.smartbear.collaborator.json.RestResponse;
 import com.smartbear.collaborator.json.collab.*;
 import com.smartbear.collaborator.json.fisheye.*;
@@ -151,29 +152,57 @@ public class IssueRest extends BaseRest {
 			
 			//JsonDevStatus jsonDevStatus = getFisheyeDevStatus(issue.getId(), request);
 			
-			List<Changeset> changesetList = getFisheyeChangesets (configModel, issue.getKey(), request);
-			if (!changesetList.isEmpty()) {
-				// download raw file contents from Fisheye server and put them
-				// to zip file
-				java.io.File targetZipFile = downloadRawFilesFromFisheye(changesetList);
+			// Create a new review
+			
+			// Check if connected to Fisheye
+			ConfigRest configRest = new ConfigRest(userManager, pluginSettingsFactory, transactionTemplate);
+			Response fisheyeResponse = configRest.checkFisheyeConnection(configModel, request);
+			Boolean isConnectedToFisheye = (Response.Status.fromStatusCode( fisheyeResponse.getStatus() ).getFamily() == Response.Status.Family.SUCCESSFUL );
+			
+			// We should only continue if we're connected to Fisheye or if we allow reviews to be created in the absence of Fisheye changesets.
+			if ( isConnectedToFisheye || configModel.getAllowEmptyReviewCreation()) {
 				
+				// If we can connect to Fisheye, then we want to get the list of raw files so we can upload them to Collaborator
+				java.io.File targetZipFile = null;
+				List<Changeset> changesetList = new ArrayList<Changeset>();
+				
+				if ( isConnectedToFisheye ) {
+					
+					// download raw file contents from Fisheye server and put them
+					// to zip file
+					changesetList = getFisheyeChangesets (configModel, issue.getKey(), request);
+					
+					if (!changesetList.isEmpty()) {
+						targetZipFile = downloadRawFilesFromFisheye(changesetList);
+					}
+				}
+	
 				//Check if collab auth ticket is valid
 			    checkCollabTicket();
+	
+			    if (targetZipFile != null) {
+				    // upload zip file with raw files to Collaborator Server
+					uploadRawFilesToCollab(targetZipFile);
+			    }
+				
+			    String reviewId = null;
 			    
-			    // upload zip file with raw files to Collaborator Server
-				uploadRawFilesToCollab(targetZipFile);
-				
-				//get review id if exist or create new one
-				String reviewId = (String) reviewIdCustomField.getValue(issue);
-				if (reviewId == null) {
-					CollabUserInfo collabUserInfo = getCollabUserInfo(username);
-					reviewId = createReview(collabUserInfo);
-					addAuthorToReview(reviewId, collabUserInfo) ;
+			    // If we don't have any changes, then we should only create reviews if we allow reviews without changes.
+			    if ( ! changesetList.isEmpty() || configModel.getAllowEmptyReviewCreation() ) {
+					//get review id if exist or create new one
+					reviewId = (String) reviewIdCustomField.getValue(issue);
+					if (reviewId == null) {
+						CollabUserInfo collabUserInfo = getCollabUserInfo(username);
+						reviewId = createReview(collabUserInfo);
+						addAuthorToReview(reviewId, collabUserInfo) ;
+					}
+			    }
+	
+				if (!changesetList.isEmpty() && reviewId != null) {
+					// addchangelist to new/old review (depend on reviewModel)
+					addFiles(changesetList, reviewId, request);
 				}
-
-				//addchangelist to new/old review (depend on reviewModel)
-				addFiles(changesetList, reviewId, request);
-				
+					
 				// Update already uploaded commit id list
 				issue.setCustomFieldValue(reviewUploadedCommitListCustomField, convertUploadedCommitListToString());
 				reviewUploadedCommitListCustomField.updateValue(null, issue, new ModifiedValue(null, convertUploadedCommitListToString()), changeHolder);
