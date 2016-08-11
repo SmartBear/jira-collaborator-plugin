@@ -152,62 +152,56 @@ public class IssueRest extends BaseRest {
 			
 			//JsonDevStatus jsonDevStatus = getFisheyeDevStatus(issue.getId(), request);
 			
-			// Create a new review
+			java.io.File targetZipFile = null;
+			List<Changeset> changesetList = new ArrayList<Changeset>();
 			
-			// Check if connected to Fisheye
-			ConfigRest configRest = new ConfigRest(userManager, pluginSettingsFactory, transactionTemplate);
-			Response fisheyeResponse = configRest.checkFisheyeConnection(configModel, request);
-			Boolean isConnectedToFisheye = (Response.Status.fromStatusCode( fisheyeResponse.getStatus() ).getFamily() == Response.Status.Family.SUCCESSFUL );
-			
-			// We should only continue if we're connected to Fisheye or if we allow reviews to be created in the absence of Fisheye changesets.
-			if ( isConnectedToFisheye || configModel.getAllowEmptyReviewCreation()) {
+			try {
+				// download raw file contents from Fisheye server and put them
+				// to zip file
+				changesetList = getFisheyeChangesets (configModel, issue.getKey(), request);
 				
-				// If we can connect to Fisheye, then we want to get the list of raw files so we can upload them to Collaborator
-				java.io.File targetZipFile = null;
-				List<Changeset> changesetList = new ArrayList<Changeset>();
-				
-				if ( isConnectedToFisheye ) {
-					
-					// download raw file contents from Fisheye server and put them
-					// to zip file
-					changesetList = getFisheyeChangesets (configModel, issue.getKey(), request);
-					
-					if (!changesetList.isEmpty()) {
-						targetZipFile = downloadRawFilesFromFisheye(changesetList);
-					}
+				if (!changesetList.isEmpty()) {
+					targetZipFile = downloadRawFilesFromFisheye(changesetList);
 				}
+			} catch ( Exception e ) {
+				// Unable to get changesets from Fisheye.
+				if ( ! configModel.getAllowEmptyReviewCreation() ) {
+					// We should stop right here unless we allow creating reviews with no changesets
+					throw e;
+				}
+				else {
+					LOGGER.info("Unable to get FishEye Changesets. Continuing because we allow creation of empty reviews. Error: " + e.getMessage());
+				}
+			}
 	
-				//Check if collab auth ticket is valid
-			    checkCollabTicket();
-	
-			    if (targetZipFile != null) {
-				    // upload zip file with raw files to Collaborator Server
+			//Check if collab auth ticket is valid
+			checkCollabTicket();
+			
+			String reviewId = null;
+			
+			if ( ( ! changesetList.isEmpty() ) || configModel.getAllowEmptyReviewCreation() ) {
+				//get review id if exist or create new one
+				reviewId = (String) reviewIdCustomField.getValue(issue);
+				if (reviewId == null) {
+					CollabUserInfo collabUserInfo = getCollabUserInfo(username);
+					reviewId = createReview(collabUserInfo);
+					addAuthorToReview(reviewId, collabUserInfo) ;
+				}
+			}
+
+			if ( ! changesetList.isEmpty() ) {
+				if (targetZipFile != null) {
+					// upload zip file with raw files to Collaborator Server if we were able to get files to send
 					uploadRawFilesToCollab(targetZipFile);
-			    }
-				
-			    String reviewId = null;
-			    
-			    // If we don't have any changes, then we should only create reviews if we allow reviews without changes.
-			    if ( ! changesetList.isEmpty() || configModel.getAllowEmptyReviewCreation() ) {
-					//get review id if exist or create new one
-					reviewId = (String) reviewIdCustomField.getValue(issue);
-					if (reviewId == null) {
-						CollabUserInfo collabUserInfo = getCollabUserInfo(username);
-						reviewId = createReview(collabUserInfo);
-						addAuthorToReview(reviewId, collabUserInfo) ;
-					}
-			    }
-	
-				if (!changesetList.isEmpty() && reviewId != null) {
-					// addchangelist to new/old review (depend on reviewModel)
-					addFiles(changesetList, reviewId, request);
 				}
-					
+
+				// addchangelist to new/old review (depend on reviewModel)
+				addFiles(changesetList, reviewId, request);
+			
 				// Update already uploaded commit id list
 				issue.setCustomFieldValue(reviewUploadedCommitListCustomField, convertUploadedCommitListToString());
 				reviewUploadedCommitListCustomField.updateValue(null, issue, new ModifiedValue(null, convertUploadedCommitListToString()), changeHolder);
 			}
-
 		} catch (Exception e) {
 			LOGGER.error(e);
 			restResponse.setStatusCode(RestResponse.STATUS_ERROR);
