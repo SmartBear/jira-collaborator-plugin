@@ -762,10 +762,10 @@ public class IssueRest extends BaseRest {
 			createReviewCommand.getArgs().put("title", issue.getSummary() != null ? issue.getSummary() : "");
 			createReviewCommand.getArgs().put("customFields",
 					new com.smartbear.collaborator.json.collab.CustomField[] { 
-					new com.smartbear.collaborator.json.collab.CustomField("Overview", new HashSet(Arrays.asList(issue.getDescription() != null ? issue.getDescription() : "")) )	});
-			createReviewCommand.getArgs().put("internalCustomFields",
-					new com.smartbear.collaborator.json.collab.CustomField[] { 
-					new com.smartbear.collaborator.json.collab.CustomField("JiraIssueId",  new HashSet(Arrays.asList(issue.getId().toString())) )});
+							new com.smartbear.collaborator.json.collab.CustomField("Overview", new HashSet(Arrays.asList(issue.getDescription() != null ? issue.getDescription() : "")) ),
+							new com.smartbear.collaborator.json.collab.CustomField("JiraIssueId",  new HashSet(Arrays.asList(issue.getId().toString())) )
+					}
+			);
 			
 			String jsonRequestString = mapper.writeValueAsString(new JsonCommand[] { authenticateCommand, createReviewCommand });
 
