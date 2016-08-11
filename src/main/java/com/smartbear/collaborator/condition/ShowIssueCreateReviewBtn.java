@@ -62,6 +62,7 @@ public class ShowIssueCreateReviewBtn implements Condition {
 		try {
 			ConfigModel config = Util.getConfigModel(pluginSettings);
 			
+			// If we allow users to create empty reviews, then we don't need to check for Fisheye changesets.
 			if (config.getAllowEmptyReviewCreation()) {
 				return true;
 			}
@@ -72,7 +73,6 @@ public class ShowIssueCreateReviewBtn implements Condition {
 			}
 			
 		} catch (Exception e) {
-			e.printStackTrace();
 			return false;
 		}
 		return false;
