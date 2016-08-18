@@ -156,11 +156,11 @@ public class IssueRest extends BaseRest {
 			List<Changeset> changesetList = new ArrayList<Changeset>();
 			
 			try {
-				// download raw file contents from Fisheye server and put them
-				// to zip file
 				changesetList = getFisheyeChangesets (configModel, issue.getKey(), request);
 				
 				if (!changesetList.isEmpty()) {
+					// download raw file contents from Fisheye server and put them
+					// to zip file
 					targetZipFile = downloadRawFilesFromFisheye(changesetList);
 				}
 			} catch ( Exception e ) {
@@ -762,10 +762,10 @@ public class IssueRest extends BaseRest {
 			createReviewCommand.getArgs().put("title", issue.getSummary() != null ? issue.getSummary() : "");
 			createReviewCommand.getArgs().put("customFields",
 					new com.smartbear.collaborator.json.collab.CustomField[] { 
-							new com.smartbear.collaborator.json.collab.CustomField("Overview", new HashSet(Arrays.asList(issue.getDescription() != null ? issue.getDescription() : "")) ),
-							new com.smartbear.collaborator.json.collab.CustomField("JiraIssueId",  new HashSet(Arrays.asList(issue.getId().toString())) )
-					}
-			);
+					new com.smartbear.collaborator.json.collab.CustomField("Overview", new HashSet(Arrays.asList(issue.getDescription() != null ? issue.getDescription() : "")) )	});
+			createReviewCommand.getArgs().put("internalCustomFields",
+					new com.smartbear.collaborator.json.collab.CustomField[] { 
+					new com.smartbear.collaborator.json.collab.CustomField("JiraIssueId",  new HashSet(Arrays.asList(issue.getId().toString())) )});
 			
 			String jsonRequestString = mapper.writeValueAsString(new JsonCommand[] { authenticateCommand, createReviewCommand });
 
