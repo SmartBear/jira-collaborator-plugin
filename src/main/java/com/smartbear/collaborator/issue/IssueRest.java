@@ -66,6 +66,7 @@ import com.atlassian.sal.api.transaction.TransactionTemplate;
 import com.atlassian.sal.api.user.UserManager;
 import com.smartbear.collaborator.BaseRest;
 import com.smartbear.collaborator.admin.ConfigModel;
+import com.smartbear.collaborator.admin.ConfigRest;
 import com.smartbear.collaborator.json.RestResponse;
 import com.smartbear.collaborator.json.collab.*;
 import com.smartbear.collaborator.json.fisheye.*;
@@ -151,34 +152,56 @@ public class IssueRest extends BaseRest {
 			
 			//JsonDevStatus jsonDevStatus = getFisheyeDevStatus(issue.getId(), request);
 			
-			List<Changeset> changesetList = getFisheyeChangesets (configModel, issue.getKey(), request);
-			if (!changesetList.isEmpty()) {
-				// download raw file contents from Fisheye server and put them
-				// to zip file
-				java.io.File targetZipFile = downloadRawFilesFromFisheye(changesetList);
+			java.io.File targetZipFile = null;
+			List<Changeset> changesetList = new ArrayList<Changeset>();
+			
+			try {
+				changesetList = getFisheyeChangesets (configModel, issue.getKey(), request);
 				
-				//Check if collab auth ticket is valid
-			    checkCollabTicket();
-			    
-			    // upload zip file with raw files to Collaborator Server
-				uploadRawFilesToCollab(targetZipFile);
-				
+				if (!changesetList.isEmpty()) {
+					// download raw file contents from Fisheye server and put them
+					// to zip file
+					targetZipFile = downloadRawFilesFromFisheye(changesetList);
+				}
+			} catch ( Exception e ) {
+				// Unable to get changesets from Fisheye.
+				if ( ! configModel.getAllowEmptyReviewCreation() ) {
+					// We should stop right here unless we allow creating reviews with no changesets
+					throw e;
+				}
+				else {
+					LOGGER.info("Unable to get FishEye Changesets. Continuing because we allow creation of empty reviews. Error: " + e.getMessage());
+				}
+			}
+	
+			//Check if collab auth ticket is valid
+			checkCollabTicket();
+			
+			String reviewId = null;
+			
+			if ( ( ! changesetList.isEmpty() ) || configModel.getAllowEmptyReviewCreation() ) {
 				//get review id if exist or create new one
-				String reviewId = (String) reviewIdCustomField.getValue(issue);
+				reviewId = (String) reviewIdCustomField.getValue(issue);
 				if (reviewId == null) {
 					CollabUserInfo collabUserInfo = getCollabUserInfo(username);
 					reviewId = createReview(collabUserInfo);
 					addAuthorToReview(reviewId, collabUserInfo) ;
 				}
+			}
 
-				//addchangelist to new/old review (depend on reviewModel)
+			if ( ! changesetList.isEmpty() ) {
+				if (targetZipFile != null) {
+					// upload zip file with raw files to Collaborator Server if we were able to get files to send
+					uploadRawFilesToCollab(targetZipFile);
+				}
+
+				// addchangelist to new/old review (depend on reviewModel)
 				addFiles(changesetList, reviewId, request);
-				
+			
 				// Update already uploaded commit id list
 				issue.setCustomFieldValue(reviewUploadedCommitListCustomField, convertUploadedCommitListToString());
 				reviewUploadedCommitListCustomField.updateValue(null, issue, new ModifiedValue(null, convertUploadedCommitListToString()), changeHolder);
 			}
-
 		} catch (Exception e) {
 			LOGGER.error(e);
 			restResponse.setStatusCode(RestResponse.STATUS_ERROR);

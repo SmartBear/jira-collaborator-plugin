@@ -41,6 +41,10 @@ public class BaseServlet extends HttpServlet {
 		this.renderer = renderer;
 	}
 	
+	/*
+	 * Checks that the user is logged in before performing any operations. If they are not, then ask them to log in before proceeding.
+	 * Also checks that the user is an administrator. If they are logged in but not an administrator, they'll still be asked to log in.
+	 */
 	@Override
 	public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
 		String username = userManager.getRemoteUsername(request);

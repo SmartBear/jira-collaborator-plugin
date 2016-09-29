@@ -14,33 +14,34 @@
  *  limitations under the License.
  */
 AJS.toInit(function() {
-		
+
 	  var baseUrl = AJS.$("meta[name='ajs-context-path']").attr("content");
-	  var secureWarning = "Be careful. You are using not seccure protocol for transferring secure data!";
-	  	  
+	  var secureWarning = "Be careful. You are using an insecure protocol for transferring secure data!";
+
 	  function checkSecureProtocol() {
 		  if (baseUrl.indexOf("https://") >= 0) {
 	    	  alert(secureWarning);
-	      }  
+	      }
 	  }
-	  
+
 	  function computeConfigData() {
-		  return '{ "url": "' + encodeURIComponent(AJS.$("#url").attr("value")) + 
-	      '", "login": "' + encodeURIComponent(AJS.$("#login").attr("value")) + 
+		  return '{ "url": "' + encodeURIComponent(AJS.$("#url").attr("value")) +
+	      '", "login": "' + encodeURIComponent(AJS.$("#login").attr("value")) +
 	      '", "password": "' + encodeURIComponent(AJS.$("#password").attr("value")) +
-	      '", "fisheyeUrl": "' + encodeURIComponent(AJS.$("#fisheyeUrl").attr("value")) + 
-	      '", "fisheyeLogin": "' + encodeURIComponent(AJS.$("#fisheyeLogin").attr("value")) + 
-	      '", "fisheyePassword": "' + encodeURIComponent(AJS.$("#fisheyePassword").attr("value")) +  
-	      '", "projectKey": "' + encodeURIComponent(AJS.$("#projectKey").attr("value")) + '"}';	  
+	      '", "fisheyeUrl": "' + encodeURIComponent(AJS.$("#fisheyeUrl").attr("value")) +
+	      '", "fisheyeLogin": "' + encodeURIComponent(AJS.$("#fisheyeLogin").attr("value")) +
+	      '", "fisheyePassword": "' + encodeURIComponent(AJS.$("#fisheyePassword").attr("value")) +
+	      '", "allowEmptyReviewCreation": "' + encodeURIComponent(AJS.$("#jiraAllowEmptyReviewCreation").is(":checked")) +
+	      '", "projectKey": "' + encodeURIComponent(AJS.$("#projectKey").attr("value")) + '"}';
 	  }
-	  
-	  function populateForm() {		  
-	      AJS.$.ajax({	      
+
+	  function populateForm() {
+	      AJS.$.ajax({
 	      url: baseUrl + "/rest/collab/1.0/project",
 	      dataType: "json",
-	      data: {"projectKey": AJS.$("#projectKey").attr("value")},	      
+	      data: {"projectKey": AJS.$("#projectKey").attr("value")},
 	      type: "GET",
-	      
+
 	      success: function(config) {
 			AJS.$("#url").attr("value", config.url === undefined ? '' : decodeURIComponent(config.url) );
 	        AJS.$("#login").attr("value", config.login === undefined ? '' : decodeURIComponent(config.login) );
@@ -48,54 +49,35 @@ AJS.toInit(function() {
 	        AJS.$("#fisheyeUrl").attr("value", config.fisheyeUrl === undefined ? '' : decodeURIComponent(config.fisheyeUrl));
 	        AJS.$("#fisheyeLogin").attr("value", config.fisheyeLogin === undefined ? '' : decodeURIComponent(config.fisheyeLogin));
 	        AJS.$("#fisheyePassword").attr("value", config.fisheyePassword === undefined ? '' : decodeURIComponent(config.fisheyePassword));
+
+	        var stringAllowEmptyReviewCreation = config.allowEmptyReviewCreation === undefined ? '' : decodeURIComponent(config.allowEmptyReviewCreation);
+	        var boolAllowEmptyReviewCreation = stringAllowEmptyReviewCreation.toLowerCase() === 'true';
+	        AJS.$("#jiraAllowEmptyReviewCreation").prop("checked", boolAllowEmptyReviewCreation);
 	      }
 	    });
 	    checkSecureProtocol();
 	  }
 	  function updateConfig() {
-		  checkSecureProtocol();
-	      AJS.$.ajax({      
-	      url: baseUrl + "/rest/collab/1.0/project",
-	      type: "PUT",
-	      contentType: "application/json",
-	      data: computeConfigData(),
-	      dataType: "json",	      
-	      success: function(restResponse) {
-	    	  if (restResponse.statusCode == 1) {	    		  	    		  
-	    		  JIRA.Messages.showSuccessMsg(restResponse.message);
-	    	  } else {
-	    		  JIRA.Messages.showErrorMsg(restResponse.message);
-	    	  }
-		   }
-	    });
-	  } 
-	  
+		  makePutRequest( "/rest/collab/1.0/project" );
+	  }
+
 	  function checkCollabConnection() {
-	      AJS.$.ajax({      
-	      url: baseUrl + "/rest/collab/1.0/project/checkCollabConnection",
-	      type: "PUT",
-	      contentType: "application/json",
-	      data: computeConfigData(),
-	      dataType: "json",
-	      success: function(restResponse) {
-	    	  if (restResponse.statusCode == 1) {	    		  	    		  
-	    		  JIRA.Messages.showSuccessMsg(restResponse.message);
-	    	  } else {
-	    		  JIRA.Messages.showErrorMsg(restResponse.message);
-	    	  }
-		   }
-	    });
+		  makePutRequest( "/rest/collab/1.0/project/checkCollabConnection" );
 	  }
-	  
+
 	  function checkFisheyeConnection() {
-	      AJS.$.ajax({      
-	      url: baseUrl + "/rest/collab/1.0/project/checkFisheyeConnection",
+		  makePutRequest( "/rest/collab/1.0/project/checkFisheyeConnection" );
+	  }
+
+	  function makePutRequest(service) {
+	      AJS.$.ajax({
+	      url: baseUrl + "" + service,
 	      type: "PUT",
 	      contentType: "application/json",
 	      data: computeConfigData(),
 	      dataType: "json",
 	      success: function(restResponse) {
-	    	  if (restResponse.statusCode == 1) {	    		  	    		  
+	    	  if (restResponse.statusCode == 1) {
 	    		  JIRA.Messages.showSuccessMsg(restResponse.message);
 	    	  } else {
 	    		  JIRA.Messages.showErrorMsg(restResponse.message);
@@ -103,19 +85,20 @@ AJS.toInit(function() {
 		   }
 	    });
 	  }
+
 	  populateForm();
 
 	  AJS.$("#admin").submit(function(e) {
 	    e.preventDefault();
 	    updateConfig();
 	  });
-	  
-	  AJS.$("#testCollabConnection").click(function(e) {	  
+
+	  AJS.$("#testCollabConnection").click(function(e) {
 		    e.preventDefault();
 		    checkCollabConnection();
 		  });
-	  
-	  AJS.$("#testFisheyeConnection").click(function(e) {	  
+
+	  AJS.$("#testFisheyeConnection").click(function(e) {
 		    e.preventDefault();
 		    checkFisheyeConnection();
 		  });

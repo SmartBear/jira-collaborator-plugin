@@ -24,6 +24,7 @@ import com.atlassian.plugin.PluginParseException;
 import com.atlassian.plugin.web.Condition;
 import com.atlassian.sal.api.pluginsettings.PluginSettings;
 import com.atlassian.sal.api.pluginsettings.PluginSettingsFactory;
+import com.smartbear.collaborator.admin.ConfigModel;
 import com.smartbear.collaborator.issue.IssueRest;
 import com.smartbear.collaborator.json.fisheye.Changeset;
 import com.smartbear.collaborator.util.Util;
@@ -57,12 +58,20 @@ public class ShowIssueCreateReviewBtn implements Condition {
 		
 		// Get plugin settings by project key
 		PluginSettings pluginSettings = pluginSettingsFactory.createSettingsForKey(issue.getProjectObject().getKey());
-
+		
 		try {
-			List<Changeset> changesets = IssueRest.getFisheyeChangesets(Util.getConfigModel(pluginSettings), issue.getKey(), jiraHelper.getRequest());
+			ConfigModel config = Util.getConfigModel(pluginSettings);
+			
+			// If we allow users to create empty reviews, then we don't need to check for Fisheye changesets.
+			if (config.getAllowEmptyReviewCreation()) {
+				return true;
+			}
+			
+			List<Changeset> changesets = IssueRest.getFisheyeChangesets(config, issue.getKey(), jiraHelper.getRequest());
 			if (!changesets.isEmpty()) {
 				return true;
-			}			
+			}
+			
 		} catch (Exception e) {
 			return false;
 		}

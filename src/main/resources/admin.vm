@@ -52,6 +52,11 @@
 		<div class="field-group">
      		<button id="testFisheyeConnection" class="button" >$i18n.getText("label.admin.fisheyetest")</button>
    		</div>
+   		<h2>$i18n.getText("label.admin.title.jira")</h2>
+		<div class="field-group">
+			<label for="jiraAllowEmptyReviewCreation">$i18n.getText("label.admin.jiraAllowEmptyReviewCreation")</label>
+			<input type="checkbox" id="jiraAllowEmptyReviewCreation" name="jiraAllowEmptyReviewCreation" class="checkbox"/>
+		</div>
    		
    		<br/>   		
    		<div class="field-group">
