@@ -460,8 +460,6 @@ public class IssueRest extends BaseRest {
 			ZipOutputStream zipOutputStream = new ZipOutputStream(fileOutputStream);
 			HashSet<String> zipEntryNames = new HashSet<String>();
 
-			Client client;		
-			WebResource service;
 			ClientResponse response;
 			InputStream fileInputStream;
 			

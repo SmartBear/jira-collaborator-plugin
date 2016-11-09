@@ -8,3 +8,12 @@ target/
 
 # Ignore open files in Vim
 *.swp
+
+# IDEA
+*.iml
+.idea/
+*.ipr
+*.iws
+
+*.class
+*.jar
