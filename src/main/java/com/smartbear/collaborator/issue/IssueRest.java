@@ -22,14 +22,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLDecoder;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -66,7 +59,6 @@ import com.atlassian.sal.api.transaction.TransactionTemplate;
 import com.atlassian.sal.api.user.UserManager;
 import com.smartbear.collaborator.BaseRest;
 import com.smartbear.collaborator.admin.ConfigModel;
-import com.smartbear.collaborator.admin.ConfigRest;
 import com.smartbear.collaborator.json.RestResponse;
 import com.smartbear.collaborator.json.collab.*;
 import com.smartbear.collaborator.json.fisheye.*;
@@ -227,8 +219,7 @@ public class IssueRest extends BaseRest {
 
 	/**
 	 * Calculates set of commit id's that were already added to review
-	 * 
-	 * @param issue
+	 *
 	 */
 	private void loadUploadedCommitList() {
 		String commitListStr = (String) reviewUploadedCommitListCustomField.getValue(issue);
@@ -421,22 +412,22 @@ public class IssueRest extends BaseRest {
 		checkResponseStatus(response);
 		
 		//This is the only way I see to check that Fisheye server returns file content
-		//and not login page as response status is 200OK in both cases.
+		//and not login page or folder content as response status is 200OK in both cases.
 		if (!response.getMetadata().containsKey("Content-Disposition")) {
-			throw new Exception("For some reasons Fisheye authentication failed while downloading raw files. Check Fisheye credentials or try one more time a little bit later.");
+			throw new ResponseFisheyeException("Check response failed");
 		}
 	}
 	
 	//Check that response status is 200OK or 201 or 202
 	private static void checkResponseStatus(ClientResponse response) throws Exception {		
 		if (response == null) {
-			throw new Exception("Response from Fisheye server is null or empty.");
+			throw new ResponseFisheyeException("Response from Fisheye server is null or empty.");
 		}
 		
 		if (response.getStatus() != HttpURLConnection.HTTP_OK && 
 				response.getStatus() != HttpURLConnection.HTTP_ACCEPTED && 
 				response.getStatus() != HttpURLConnection.HTTP_CREATED) {
-			throw new Exception("Response status is " + response.getStatus());
+			throw new ResponseFisheyeException("Response status is " + response.getStatus());
 		}
 	}
 
@@ -470,88 +461,96 @@ public class IssueRest extends BaseRest {
 			// zip file
 			for (Changeset changeset : changesetList) {
 
-				for (File file : changeset.getFiles()) {
+				Iterator<File> fileIter = changeset.getFiles().iterator();
+				while (fileIter.hasNext()) {
+					File file = fileIter.next();
+					try {
+						// Get raw file content from Fisheye server
+						// Example
+						// http://nb-kpl:8060/browse/~raw,r=HEAD/svn_test/test/log.txt
 
-					// Get raw file content from Fisheye server
-					// Example
-					// http://nb-kpl:8060/browse/~raw,r=HEAD/svn_test/test/log.txt
-					
-					action = Util.getVersionAction(file.getChangeType());
-					if (action == null) { continue; }
-						
-					if (action == Action.DELETED) {
-						fileBytes = new byte[0];
-					} else {
-						urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + file.getContentLink());
-						response = getFisheyeClientResponse(urlGetRawFileContent, configModel, false);				
-										
-						fileInputStream = response.getEntity(InputStream.class);
-						fileBytes = IOUtils.toByteArray(fileInputStream);
-						
-						LOGGER.debug("Request to Fisheye: " + urlGetRawFileContent);
-						LOGGER.debug("Response from Fisheye" + new String(fileBytes));
-						
-						//Check that we really received file content
-						checkRawFileResponse(response);
-					}
-					// Set calculated md5 for raw version
-					file.setMd5(calculateMd5(fileBytes));
-					
+						action = Util.getVersionAction(file.getChangeType());
+						if (action == null) {
+							continue;
+						}
 
-					if (!zipEntryNames.contains(file.getMd5())) {
-						zipEntry = new ZipEntry(file.getMd5());
-						zipOutputStream.putNextEntry(zipEntry);
-
-					// write version to temp zip file
-						zipOutputStream.write(fileBytes);
-
-						zipEntryNames.add(file.getMd5());
-					}
-					
-					
-					// Check if file was modified/deleted then download also
-					// previous version
-					if (action == Action.MODIFIED || action == Action.DELETED) {
-
-						if (!Util.isEmpty(file.getAncestor())) {
-							
-							ClientResponse ancestorChangesetResp = getFisheyeClientResponse(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_CHANGESET_API + changeset.getRepositoryName() + "/" + file.getAncestor()), configModel, true);
-							String ancestorChangesetRespString = ancestorChangesetResp.getEntity(String.class);
-							ObjectNode ancestorChangesetNode = (ObjectNode) mapper.readTree(ancestorChangesetRespString);
-							file.setPreviousCommitAuthor(ancestorChangesetNode.get("author").asText());
-							file.setPreviousCommitDate(new Date(ancestorChangesetNode.get("date").asLong()));
-							file.setPreviousCommitComment(ancestorChangesetNode.get("comment").asText());
-
-							urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + "/browse/~raw,r=" + file.getAncestor() + "/" + changeset.getRepositoryName() + "/" + file.getPath());				
+						if (action == Action.DELETED) {
+							fileBytes = new byte[0];
+						} else {
+							urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + file.getContentLink());
 							response = getFisheyeClientResponse(urlGetRawFileContent, configModel, false);
-								
+
 							fileInputStream = response.getEntity(InputStream.class);
 							fileBytes = IOUtils.toByteArray(fileInputStream);
-							
+
 							LOGGER.debug("Request to Fisheye: " + urlGetRawFileContent);
 							LOGGER.debug("Response from Fisheye" + new String(fileBytes));
-								
+
 							//Check that we really received file content
 							checkRawFileResponse(response);
-
-							// Set calculated md5 for raw version
-							file.setPreviousMd5(calculateMd5(fileBytes));
-
-							if (!zipEntryNames.contains(file.getPreviousMd5())) {
-								zipEntry = new ZipEntry(file.getPreviousMd5());
-								zipOutputStream.putNextEntry(zipEntry);
-
-								// write version to temp zip file
-								zipOutputStream.write(fileBytes);
-
-								zipEntryNames.add(file.getPreviousMd5());
-							}
-
-						} else {
-							String errorMsg = "Please, try to \"Create/Update Review\" a little bit later. FishEye server hasn't been refreshed commit info yet.";
-							LOGGER.error(errorMsg);
-							throw new Exception(errorMsg);
 						}
+						// Set calculated md5 for raw version
+						file.setMd5(calculateMd5(fileBytes));
+
+
+						if (!zipEntryNames.contains(file.getMd5())) {
+							zipEntry = new ZipEntry(file.getMd5());
+							zipOutputStream.putNextEntry(zipEntry);
+
+							// write version to temp zip file
+							zipOutputStream.write(fileBytes);
+
+							zipEntryNames.add(file.getMd5());
+						}
+
+
+						// Check if file was modified/deleted then download also
+						// previous version
+						if (action == Action.MODIFIED || action == Action.DELETED) {
+
+							if (!Util.isEmpty(file.getAncestor())) {
+
+								ClientResponse ancestorChangesetResp = getFisheyeClientResponse(Util.encodeURL(configModel.getFisheyeUrl() + FISHEYE_CHANGESET_API + changeset.getRepositoryName() + "/" + file.getAncestor()), configModel, true);
+								String ancestorChangesetRespString = ancestorChangesetResp.getEntity(String.class);
+								ObjectNode ancestorChangesetNode = (ObjectNode) mapper.readTree(ancestorChangesetRespString);
+								file.setPreviousCommitAuthor(ancestorChangesetNode.get("author").asText());
+								file.setPreviousCommitDate(new Date(ancestorChangesetNode.get("date").asLong()));
+								file.setPreviousCommitComment(ancestorChangesetNode.get("comment").asText());
+
+								urlGetRawFileContent = Util.encodeURL(configModel.getFisheyeUrl() + "/browse/~raw,r=" + file.getAncestor() + "/" + changeset.getRepositoryName() + "/" + file.getPath());
+								response = getFisheyeClientResponse(urlGetRawFileContent, configModel, false);
+
+								fileInputStream = response.getEntity(InputStream.class);
+								fileBytes = IOUtils.toByteArray(fileInputStream);
+
+								LOGGER.debug("Request to Fisheye: " + urlGetRawFileContent);
+								LOGGER.debug("Response from Fisheye" + new String(fileBytes));
+
+								//Check that we really received file content
+								checkRawFileResponse(response);
+
+								// Set calculated md5 for raw version
+								file.setPreviousMd5(calculateMd5(fileBytes));
+
+								if (!zipEntryNames.contains(file.getPreviousMd5())) {
+									zipEntry = new ZipEntry(file.getPreviousMd5());
+									zipOutputStream.putNextEntry(zipEntry);
+
+									// write version to temp zip file
+									zipOutputStream.write(fileBytes);
+
+									zipEntryNames.add(file.getPreviousMd5());
+								}
+
+							} else {
+								String errorMsg = "Please, try to \"Create/Update Review\" a little bit later. FishEye server hasn't been refreshed commit info yet.";
+								LOGGER.error(errorMsg);
+								throw new Exception(errorMsg);
+							}
+						}
+					} catch (ResponseFisheyeException e) {
+						LOGGER.error("File " + file.getPath() + " is folder or you don't have access to it. Check it " + file.getContentLink());
+						fileIter.remove();
 					}
 				}				
 			}
@@ -739,8 +738,7 @@ public class IssueRest extends BaseRest {
 
 	/**
 	 * Creates new review on Collaborator server and returns review id
-	 * 
-	 * @param issue
+	 *
 	 * @return
 	 * @throws Exception
 	 */
@@ -801,8 +799,7 @@ public class IssueRest extends BaseRest {
 	/**
 	 * Adds current jira user as author to review participants in case there is
 	 * collaborator user mapped with current jira user
-	 * 
-	 * @param issue
+	 *
 	 * @return
 	 * @throws Exception
 	 */
