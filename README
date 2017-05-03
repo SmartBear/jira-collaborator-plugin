@@ -1,8 +1,7 @@
 SmartBear Collaborator JIRA Plugin
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This plugin is designed to work with JIRA 5.x.x and supports creating (or adding to) reviews from git and svn commits.
-This plugin works in conjunction with pre-installed Fisheye plugin and uses commits attached to JIRA issue through Fisheye plugin.
+This plugin is designed to work with JIRA 5.x.x and later and supports creating (or adding to) reviews from git and svn commits that are stored on Fisheye server.
 
 This plugin is based mostly on the json api provided by Collaborator and rest api provided by Fisheye server, with third party
 libraries to create/send/receive http requests and responses.
