@@ -195,7 +195,7 @@ public class IssueRest extends BaseRest {
 				reviewUploadedCommitListCustomField.updateValue(null, issue, new ModifiedValue(null, convertUploadedCommitListToString()), changeHolder);
 			}
 		} catch (Exception e) {
-			LOGGER.error(e);
+			LOGGER.error(e, e);
 			restResponse.setStatusCode(RestResponse.STATUS_ERROR);
 			restResponse.setMessage(e.getMessage());
 
@@ -286,6 +286,11 @@ public class IssueRest extends BaseRest {
 				String changesetUrl = null;
 				try {
 					ObjectNode repository = (ObjectNode) repositoryObj;
+
+					//Check if repo is in running state
+					if (!"RUNNING".equalsIgnoreCase(repository.get("repositoryState").asText())) {
+						continue;
+					}
 					String repositoryName = repository.get("name").asText();
 
 					// Get changesets from Fisheye for current repositoryName
@@ -335,12 +340,12 @@ public class IssueRest extends BaseRest {
 				} catch (Exception e) {
 					LOGGER.error("Request to Fisheye: " + changesetUrl);
 					LOGGER.info("Response from Fisheye" + changesetResponseString);
-					LOGGER.error(e);
+					LOGGER.error(e, e);
 				}	
 			}
 			return changesetList;
 		} catch (Exception e) {
-			LOGGER.error(e);
+			LOGGER.error(e, e);
 			throw new Exception("Can't get FishEye changeset information for issue " + issueKey + ". Check please FishEye url and username/password.", e);
 		}	
 	}
@@ -401,7 +406,7 @@ public class IssueRest extends BaseRest {
 			return repositoryMap;
 
 		} catch (Exception e) {
-			LOGGER.error(e);
+			LOGGER.error(e, e);
 			throw new Exception("Can't get FishEye repositories information. Check please FishEye url and username/password.", e);
 		}
 	}
@@ -621,7 +626,7 @@ public class IssueRest extends BaseRest {
 			}
 
 		} catch (Exception e) {
-			LOGGER.error(e);
+			LOGGER.error(e, e);
 			throw new Exception("Can't upload raw versions to Collaborator Server. Check plugin collaborator configuration (url, login, password).", e);
 		} finally {
 			if (httpUrlConnection != null) {
@@ -687,7 +692,7 @@ public class IssueRest extends BaseRest {
 			pluginSettings.put(ConfigModel.class.getName() + ".authTicket", URLDecoder.decode(configModel.getAuthTicket(), "UTF-8"));
 
 		} catch (Exception e) {
-			LOGGER.error(e);
+			LOGGER.error(e, e);
 			throw new Exception("Can't update authentification ticket for Collaborator Server.\n " + e.getMessage());
 		}
 
@@ -730,7 +735,7 @@ public class IssueRest extends BaseRest {
 			return null;
 
 		} catch (Exception e) {
-			LOGGER.error(e);
+			LOGGER.error(e, e);
 			throw new Exception("Can't get Collab username.\n " + e.getMessage());
 		}
 
@@ -790,7 +795,7 @@ public class IssueRest extends BaseRest {
 			return reviewId;
 
 		} catch (Exception e) {
-			LOGGER.error(e);
+			LOGGER.error(e, e);
 			throw new Exception("Can't create new review on Collaborator Server.\n " + e.getMessage());
 		}
 
@@ -836,7 +841,7 @@ public class IssueRest extends BaseRest {
 			reviewParticipantsCustomField.updateValue(null, issue, new ModifiedValue(null, collabUserInfo.getFullName()), changeHolder);
 
 		} catch (Exception e) {
-			LOGGER.error(e);
+			LOGGER.error(e, e);
 			throw new Exception("Can't add author " + collabUserInfo.getFullName() + " to review #" +reviewId + " on Collaborator Server.\n " + e.getMessage());
 		}
 	}
@@ -927,7 +932,7 @@ public class IssueRest extends BaseRest {
 			getResultMap(mapper.readValue(responseString, JsonCommandResult[].class));
 
 		} catch (Exception e) {
-			LOGGER.error(e);
+			LOGGER.error(e, e);
 			throw new Exception("Can't addchangelists to Collaborator Server.\n " + e.getMessage());
 		}
 	}
