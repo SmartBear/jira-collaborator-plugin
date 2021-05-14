@@ -48,7 +48,7 @@ public class BaseServlet extends HttpServlet {
 	@Override
 	public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
 		String username = userManager.getRemoteUsername(request);
-		if (username == null || !userManager.isSystemAdmin(username)) {
+		if (username == null || !userManager.isAdmin(username)) {
 			redirectToLogin(request, response);
 			return;
 		}
